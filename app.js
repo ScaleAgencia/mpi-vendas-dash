@@ -208,7 +208,8 @@ function accum(n,r){ n.spend+=r.spend||0;n.impr+=r.impr||0;n.clicks+=r.clicks||0
 var expanded={meta:{},google:{}}, treeInit={meta:false,google:false};
 function buildTree(rows){ var c={}; rows.forEach(function(r){
   var cn=c[r.campaign]||(c[r.campaign]=newNode(prettyName(r.campaign),r.campaign)); accum(cn,r);
-  var an=cn.kids[r.ad]||(cn.kids[r.ad]=newNode(prettyName(r.ad),r.ad)); accum(an,r); }); return c; }
+  var sn=cn.kids[r.adset]||(cn.kids[r.adset]=newNode(prettyName(r.adset),r.adset)); accum(sn,r);
+  var an=sn.kids[r.ad]||(sn.kids[r.ad]=newNode(prettyName(r.ad),r.ad)); accum(an,r); }); return c; }
 function actTag(n,medRoas){
   if(n.spend===0 && n.sales>0) return {t:'s/ gasto',c:'act-ins'};
   if(n.spend>0 && n.sales===0) return {t:'Pausar',c:'act-pause'};
@@ -249,7 +250,7 @@ function renderTree(cfg,rng){
   var ss=treeSort[sk];
   var rows=cfg.S._grain.filter(function(r){return inRange(r.date,rng);});
   var camps=buildTree(rows);
-  var leafR=[],leafC=[]; Object.keys(camps).forEach(function(cK){ if(cK==='SEM_RASTREIO')return; var c=camps[cK]; Object.keys(c.kids).forEach(function(aK){ var an=c.kids[aK]; if(an.spend>0&&an.sales>0){leafR.push(dv(an.rev,an.spend));leafC.push(dv(an.spend,an.sales));} }); });
+  var leafR=[],leafC=[]; Object.keys(camps).forEach(function(cK){ if(cK==='SEM_RASTREIO')return; var c=camps[cK]; Object.keys(c.kids).forEach(function(sK){ var sN=c.kids[sK]; Object.keys(sN.kids).forEach(function(aK){ var an=sN.kids[aK]; if(an.spend>0&&an.sales>0){leafR.push(dv(an.rev,an.spend));leafC.push(dv(an.spend,an.sales));} }); }); });
   var medR=median(leafR), medC=median(leafC);
   function cmp(a,b){
     if(ss.key==='name'){ var rn=String(a.name).localeCompare(String(b.name),'pt',{numeric:true}); return ss.rev?-rn:rn; }
@@ -263,11 +264,12 @@ function renderTree(cfg,rng){
   function skeys(obj){ return Object.keys(obj).sort(function(x,y){ return cmp(obj[x],obj[y]); }); }
   var order=skeys(camps);
   if(!treeInit[sk]){ order.slice(0,3).forEach(function(cK){ expanded[sk]['c:'+cK]=true; }); treeInit[sk]=true; }
-  var head='<thead><tr>'+TREE_COLS.map(function(c){ var on=ss.key===c.k;
-    return '<th class="sortable'+(on?' sorton':'')+'" data-col="'+c.k+'">'+c.l+(on?' <span class="sarr">'+(ss.rev?'▲':'▼')+'</span>':'')+'</th>'; }).join('')+'</tr></thead>';
+  var head='<thead><tr>'+TREE_COLS.map(function(c){ var on=ss.key===c.k; var lab=(c.k==='name')?('Campanha › '+cfg.midLabel+' › Anúncio'):c.l;
+    return '<th class="sortable'+(on?' sorton':'')+'" data-col="'+c.k+'">'+lab+(on?' <span class="sarr">'+(ss.rev?'▲':'▼')+'</span>':'')+'</th>'; }).join('')+'</tr></thead>';
   var out=[];
   order.forEach(function(cK){ var c=camps[cK],cKey='c:'+cK,cHas=Object.keys(c.kids).length>0; out.push(treeRow(c,0,cKey,cHas,medR,medC));
-    if(expanded[sk][cKey]){ skeys(c.kids).forEach(function(aK){ out.push(treeRow(c.kids[aK],1,cKey+'|a:'+aK,false,medR,medC)); }); } });
+    if(expanded[sk][cKey]){ skeys(c.kids).forEach(function(sK){ var sN=c.kids[sK],sKey=cKey+'|s:'+sK,sHas=Object.keys(sN.kids).length>0; out.push(treeRow(sN,1,sKey,sHas,medR,medC));
+      if(expanded[sk][sKey]){ skeys(sN.kids).forEach(function(aK){ out.push(treeRow(sN.kids[aK],2,sKey+'|a:'+aK,false,medR,medC)); }); } }); } });
   if(!out.length) out.push('<tr><td colspan="7" class="empty">Sem dados no período.</td></tr>');
   var tEl=el(cfg.pfx+'-tree'); tEl.innerHTML=head+'<tbody>'+out.join('')+'</tbody>';
   el(cfg.pfx+'-treeLegend').innerHTML='<span><span class="act act-acel">Acelerar</span> ROAS ≥ 1,2× a mediana</span><span><span class="act act-rev">Revisar</span> ROAS ≤ 0,6×</span><span><span class="act act-pause">Pausar</span> gastou e não vendeu</span><span style="color:var(--muted2)">clique num cabeçalho p/ ordenar (melhor→pior); clique de novo p/ inverter</span>';

@@ -107,14 +107,14 @@ function Build-Source($qRows,$qh,$sales,$cfg){
   $Q_CHK = if($cfg.hasCheckout){ HdrLike $qh '*checkout*' } else { -1 }
   foreach($pair in @(@('Campaign',$Q_CAMP),@('Ad',$Q_AD),@('Spend',$Q_SPEND),@('Impr',$Q_IMP),@('Clicks',$Q_CLK),@('Day',$Q_DAY))){ if($pair[1] -lt 0){ throw ("Query: coluna nao encontrada: "+$pair[0]) } }
 
-  # ---- mapas de nome p/ atribuicao (deaccent -> nome real) ----
-  $campDe=@{}; $adDe=@{}; $setDe=@{}; $adToSet=@{}
+  # ---- mapas de nome p/ atribuicao (deaccent -> nome real) + pares/triplas validas ----
+  $campDe=@{}; $adDe=@{}; $setDe=@{}; $qPair=@{}; $qTriple=@{}
   foreach($r in $qRows){ if($r.Count -le $Q_AD){continue}
     $cn=Norm $r[$Q_CAMP]; $sn=Norm $r[$Q_SET]; $an=Norm $r[$Q_AD]
     if($cn -ne ''){ $k=Deaccent $cn; if(-not $campDe.ContainsKey($k)){$campDe[$k]=$cn} }
     if($an -ne ''){ $k=Deaccent $an; if(-not $adDe.ContainsKey($k)){$adDe[$k]=$an} }
     if($sn -ne ''){ $k=Deaccent $sn; if(-not $setDe.ContainsKey($k)){$setDe[$k]=$sn} }
-    if($an -ne '' -and $sn -ne '' -and -not $adToSet.ContainsKey($an)){ $adToSet[$an]=$sn }
+    if($cn -ne '' -and $sn -ne ''){ $qPair["$cn`u$sn"]=$true; if($an -ne ''){ $qTriple["$cn`u$sn`u$an"]=$true } }
   }
 
   # ---- daily + grain a partir das queries (gasto/impr/cliques/lpv/checkout) ----
@@ -138,13 +138,14 @@ function Build-Source($qRows,$qh,$sales,$cfg){
   foreach($s in $sales){
     $d=$s.date
     $o=_gd $daily $d; $o.sales++; $o.rev+=$s.rev; $o.gross+=$s.gross
-    $cName=MatchName $s.camp $campDe; if($cName -eq ''){ $cName=$SENT }
-    $aName=MatchName $s.cont $adDe
-    if($cName -eq $SENT){ $sName=$SENT; $aName=$SENT }
+    $cName=MatchName $s.camp $campDe
+    if($cName -eq ''){ $cName=$SENT; $sName=$SENT; $aName=$SENT }
     else {
-      if($aName -eq ''){ $aName=$SENT }
-      if($aName -ne $SENT -and $adToSet.ContainsKey($aName)){ $sName=$adToSet[$aName] }
-      else { $sName=MatchName $s.term $setDe; if($sName -eq ''){ $sName=$SENT } }
+      # conjunto pelo utm_term, anuncio pelo utm_content; exige co-localizacao com o gasto
+      $sName=MatchName $s.term $setDe
+      $aName=MatchName $s.cont $adDe
+      if($sName -eq '' -or -not $qPair.ContainsKey("$cName`u$sName")){ $sName=$SENT; $aName=$SENT }
+      elseif($aName -eq '' -or -not $qTriple.ContainsKey("$cName`u$sName`u$aName")){ $aName=$SENT }
       $attr++
     }
     $key="$d`u$cName`u$sName`u$aName"
