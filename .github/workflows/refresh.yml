@@ -22,17 +22,25 @@ jobs:
       - name: Build data.js (vendas MPI x queries Meta/Google + ROAS/CAC)
         shell: powershell
         run: powershell -ExecutionPolicy Bypass -File .\build.ps1 -Mode all
-      - name: Commit data.js se mudou
+      - name: Commit data.js se mudou (a prova de corrida)
         shell: powershell
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data.js
-          if (git status --porcelain data.js) {
+          if (-not (git status --porcelain data.js)) { Write-Host "sem mudancas"; exit 0 }
+          $ok = $false
+          for ($i=0; $i -lt 5; $i++) {
+            git fetch origin main
+            git reset --soft origin/main        # reparenta: mantem nosso data.js recem-gerado, sem rebase/conflito
+            git add data.js
+            if (-not (git status --porcelain data.js)) { Write-Host "data.js identico ao origin — nada a publicar"; $ok=$true; break }
             git commit -m ("auto: cloud " + (Get-Date -Format 'yyyy-MM-dd HH:mm'))
-            git pull --rebase origin main
-            git push
-          } else { Write-Host "sem mudancas" }
+            git push origin HEAD:main
+            if ($LASTEXITCODE -eq 0) { $ok=$true; break }
+            Write-Host ("push rejeitado, retry " + ($i+1) + "...")
+            Start-Sleep -Seconds 3
+          }
+          if (-not $ok) { throw "push falhou apos 5 tentativas" }
 
   deploy:
     needs: build
