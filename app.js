@@ -31,6 +31,9 @@ function prep(S){
   return S;
 }
 var META = prep(D.meta), GOOG = prep(D.google);
+var OB = arr(D.ob && D.ob.daily);
+var OB_LABELS={combo3:'Combo 3 em 1',exterior:'Investimentos no Exterior',cripto:'Criptomoedas',planilhas:'Planilhas complementares MPI'};
+var OB_ORDER=['combo3','exterior','cripto','planilhas'];
 
 /* ---------- período global ---------- */
 function boundsOf(){
@@ -321,10 +324,18 @@ function combineDaily(rng){
   return Object.keys(m).map(function(k){return m[k];}).sort(function(a,b){return a.date.localeCompare(b.date);});
 }
 function qcard(big,lab,val,sub){ return '<div class="qcard'+(big?' big':'')+'"><div class="q-l">'+lab+'</div><div class="q-v">'+val+'</div>'+(sub?'<div class="q-s">'+sub+'</div>':'')+'</div>'; }
+function obTile(big,lab,val,sub){ return '<div class="obtile'+(big?' big':'')+'"><div class="ot-l">'+lab+'</div><div class="ot-v">'+val+'</div><div class="ot-s">'+sub+'</div></div>'; }
 function renderGeral(rng){
   var am=aggDaily(META,rng), ag=aggDaily(GOOG,rng);
   var spend=am.spend+ag.spend, spendRaw=am.spendRaw+ag.spendRaw, sales=am.sales+ag.sales, rev=am.rev+ag.rev;
   var roas=dv(rev,spend), lucro=rev-spend, cac=dv(spend,sales), ticket=dv(rev,sales);
+  // ----- order bumps (period-reactive) -----
+  var obRows=OB.filter(function(o){return isDate(o.d)&&inRange(o.d,rng);});
+  var obSales=0, obRev=0, obBy={}, obByDay={};
+  obRows.forEach(function(o){ obSales+=o.s; obRev+=o.r;
+    (obBy[o.k]=obBy[o.k]||{s:0,r:0}); obBy[o.k].s+=o.s; obBy[o.k].r+=o.r;
+    (obByDay[o.d]=obByDay[o.d]||{s:0,r:0}); obByDay[o.d].s+=o.s; obByDay[o.d].r+=o.r; });
+  var convOB=dv(obSales,sales), fatTotal=rev+obRev, roasOB=dv(fatTotal,spend), lucroOB=fatTotal-spend;
   el('geralQuad').innerHTML=
     qcard(false,'Investimento Gerenciador',money0(spendRaw),'sem imposto')
     +qcard(false,'Investimento c/ Imposto',money0(spend),'imposto Meta +13,85%')
@@ -355,17 +366,36 @@ function renderGeral(rng){
     +'<td class="num '+(lucro>=0?'pos':'neg')+'">'+money0(lucro)+'</td></tr>';
   el('geralCmp').innerHTML='<thead><tr><th>Origem</th><th>Investimento</th><th>Vendas</th><th>Faturamento</th><th>Ticket</th><th>CAC</th><th>ROAS</th><th>Lucro</th></tr></thead><tbody>'
     +row('Meta Ads',COL.meta,am)+row('Google / YouTube',COL.goog,ag)+'</tbody><tfoot>'+totRow+'</tfoot>';
-  // daily combinado
+  // ----- seção Order Bumps -----
+  el('obStats').innerHTML=
+    obTile(false,'Vendas Order Bump',intf(obSales),'de '+intf(sales)+' vendas MPI')
+    +obTile(false,'Faturamento OB',money0(obRev),'líquido, no período')
+    +obTile(false,'Conv. OB',pct(convOB*100),'take rate (OB ÷ MPI)')
+    +obTile(true,'Faturamento Total',money0(fatTotal),'MPI + order bump')
+    +obTile(true,'ROAS c/ OB',roasf(roasOB),(roasOB>=1?'✓ no lucro':'sobe de '+roasf(roas)));
+  var maxObR=Math.max.apply(null,OB_ORDER.map(function(k){return obBy[k]?obBy[k].r:0;}).concat([1]));
+  var totObR=obRev||1;
+  el('obBreak').innerHTML=OB_ORDER.map(function(k){ var b=obBy[k]||{s:0,r:0}; var w=maxObR>0?Math.max(2,b.r/maxObR*100):0;
+    return '<div class="obrow"><div class="obrow-top"><span class="obl">'+esc(OB_LABELS[k])+'</span>'
+      +'<span class="obn">'+intf(b.s)+' vendas · <b>'+money0(b.r)+'</b> · '+pct(dv(b.r,totObR)*100)+'</span></div>'
+      +'<div class="obtrack"><span style="width:'+w.toFixed(1)+'%"></span></div></div>'; }).join('')
+    +'<div class="ob-foot">Order bump = produto levado junto no checkout do MPI. Faturamento líquido; imposto (+13,85%) aplicado no investimento do Meta. ROAS c/ OB = (faturamento MPI + OB) ÷ investimento c/ imposto.</div>';
+
+  // ----- daily combinado c/ order bump -----
   var rows=combineDaily(rng).slice().sort(function(a,b){return b.date.localeCompare(a.date);});
   var maxS=Math.max.apply(null,rows.map(function(r){return r.spend||0;}).concat([1]));
-  var head='<thead><tr><th>Dia</th><th>Investimento c/ Imp.</th><th>Vendas</th><th>CAC</th><th>Faturamento</th><th>ROAS</th><th>Lucro</th></tr></thead>';
-  var body=rows.map(function(r){ var rz=dv(r.rev,r.spend), lu=r.rev-r.spend;
+  var head='<thead><tr><th>Dia</th><th>Investimento</th><th>Vendas</th><th>Fat. MPI</th><th>Fat. OB</th><th>Fat. Total</th><th>ROAS c/ OB</th><th>Lucro c/ OB</th></tr></thead>';
+  var body=rows.map(function(r){ var ob=obByDay[r.date]||{s:0,r:0}, ft=r.rev+ob.r, rz=dv(ft,r.spend), lu=ft-r.spend;
     return '<tr><td>'+fmtBR(r.date)+'</td><td class="num"><span class="heatcell" style="'+heatBg('35,194,134',r.spend/maxS)+'">'+money0(r.spend)+'</span></td>'
-      +'<td class="num">'+intf(r.sales)+'</td><td class="num">'+(r.sales?money0(dv(r.spend,r.sales)):'—')+'</td>'
-      +'<td class="num">'+money0(r.rev)+'</td><td class="num">'+(r.spend>0?'<span class="roas-pill '+roasClass(rz)+'">'+roasf(rz)+'</span>':'—')+'</td>'
+      +'<td class="num">'+intf(r.sales)+'</td><td class="num">'+money0(r.rev)+'</td>'
+      +'<td class="num'+(ob.r>0?' obcell':'')+'">'+(ob.r>0?money0(ob.r):'—')+'</td>'
+      +'<td class="num">'+money0(ft)+'</td>'
+      +'<td class="num">'+(r.spend>0?'<span class="roas-pill '+roasClass(rz)+'">'+roasf(rz)+'</span>':'—')+'</td>'
       +'<td class="num '+(lu>=0?'pos':'neg')+'">'+money0(lu)+'</td></tr>'; }).join('');
-  if(!rows.length)body='<tr><td colspan="7" class="empty">Sem dados no período.</td></tr>';
-  el('geralDaily').innerHTML=head+'<tbody>'+body+'</tbody>';
+  if(!rows.length)body='<tr><td colspan="8" class="empty">Sem dados no período.</td></tr>';
+  var fRoas=dv(fatTotal,spend);
+  var foot='<tfoot><tr><td>Total</td><td class="num">'+money0(spend)+'</td><td class="num">'+intf(sales)+'</td><td class="num">'+money0(rev)+'</td><td class="num">'+money0(obRev)+'</td><td class="num">'+money0(fatTotal)+'</td><td class="num">'+(spend>0?roasf(fRoas):'—')+'</td><td class="num '+(lucroOB>=0?'pos':'neg')+'">'+money0(lucroOB)+'</td></tr></tfoot>';
+  el('geralDaily').innerHTML=head+'<tbody>'+body+'</tbody>'+foot;
 }
 
 /* =================== ORQUESTRAÇÃO =================== */

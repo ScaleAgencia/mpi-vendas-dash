@@ -72,22 +72,44 @@ $V_PROD=HdrLike $vh 'produto'; $V_DATE=HdrLike $vh 'data'; $V_VAL=HdrLike $vh 'v
 $V_SRC=HdrLike $vh 'utm_source'; $V_MED=HdrLike $vh 'utm_medium'; $V_CONT=HdrLike $vh 'utm_content'; $V_TERM=HdrLike $vh 'utm_term'; $V_CAMP=HdrLike $vh 'utm_campaign'
 foreach($pair in @(@('Produto',$V_PROD),@('Data',$V_DATE),@('Faturamento',$V_FAT),@('utm_source',$V_SRC),@('utm_campaign',$V_CAMP))){ if($pair[1] -lt 0){ throw ("Vendas: coluna nao encontrada: "+$pair[0]) } }
 
+# order bumps do MPI (chave ASCII; front prettifica os acentos)
+function ObKey($prod){ $p=Deaccent $prod
+  if($p -like 'planilhas complementares mpi*'){ return 'planilhas' }
+  if($p -eq 'investimentos no exterior'){ return 'exterior' }
+  if($p -eq 'combo 3 em 1'){ return 'combo3' }
+  if($p -eq 'criptomoedas'){ return 'cripto' }
+  return '' }
+
 $metaSales = New-Object System.Collections.Generic.List[object]
 $googleSales = New-Object System.Collections.Generic.List[object]
-$nSkipProd=0
+$obSales = New-Object System.Collections.Generic.List[object]
+$nSkip=0
 foreach($r in $vd){
   if($r.Count -le $V_CAMP){ continue }
-  $prod = Norm $r[$V_PROD]
-  if($MPI_PRODUCTS -notcontains $prod){ $nSkipProd++; continue }
   $src = Deaccent $r[$V_SRC]
-  $dst = $null
-  if($src -eq 'facebook-ads'){ $dst=$metaSales } elseif($src -eq 'google-ads'){ $dst=$googleSales } else { continue }
+  if($src -ne 'facebook-ads' -and $src -ne 'google-ads'){ continue }   # so trafego pago (mesma regra do MPI)
   $d = SaleDate $r[$V_DATE]; if($d -eq ''){ continue }
+  $prod = Norm $r[$V_PROD]
   $rev = MoneyBR $r[$V_FAT]; $gross = if($V_VAL -ge 0){ MoneyBR $r[$V_VAL] } else { $rev }
-  $dst.Add([pscustomobject]@{ date=$d; rev=$rev; gross=$gross
-    camp=(Norm $r[$V_CAMP]); term=(Norm $r[$V_TERM]); cont=(Norm $r[$V_CONT]); med=(Norm $r[$V_MED]) })
+  $stag='g'; if($src -eq 'facebook-ads'){ $stag='m' }
+  if($MPI_PRODUCTS -contains $prod){
+    if($src -eq 'facebook-ads'){ $dst=$metaSales } else { $dst=$googleSales }
+    $dst.Add([pscustomobject]@{ date=$d; rev=$rev; gross=$gross
+      camp=(Norm $r[$V_CAMP]); term=(Norm $r[$V_TERM]); cont=(Norm $r[$V_CONT]); med=(Norm $r[$V_MED]) })
+  } else {
+    $ok = ObKey $prod
+    if($ok -ne ''){ $obSales.Add([pscustomobject]@{ date=$d; k=$ok; src=$stag; rev=$rev; gross=$gross }) }
+    else { $nSkip++ }
+  }
 }
-Write-Host ("Vendas MPI: Meta={0}  Google={1}  (fora do produto: {2})" -f $metaSales.Count,$googleSales.Count,$nSkipProd)
+# agrega OB por dia x produto x origem (period-reactive no front)
+$obAgg=@{}
+foreach($s in $obSales){ $key="$($s.date)`u$($s.k)`u$($s.src)"
+  if(-not $obAgg.ContainsKey($key)){ $obAgg[$key]=[pscustomobject]@{date=$s.date;k=$s.k;src=$s.src;sales=0;rev=0.0;gross=0.0} }
+  $o=$obAgg[$key]; $o.sales++; $o.rev+=$s.rev; $o.gross+=$s.gross }
+$obDaily=@()
+foreach($o in ($obAgg.Values | Sort-Object date)){ $obDaily += [pscustomobject]@{ d=$o.date; k=$o.k; src=$o.src; s=[int]$o.sales; r=[math]::Round($o.rev,2); g=[math]::Round($o.gross,2) } }
+Write-Host ("Vendas MPI: Meta={0}  Google={1}  |  Order bumps: {2} vendas ({3} linhas/dia-produto)" -f $metaSales.Count,$googleSales.Count,$obSales.Count,$obDaily.Count)
 
 # =====================================================================
 #  Build-Source: cruza queries x vendas de uma origem
@@ -195,6 +217,7 @@ $utf8=[System.Text.UTF8Encoding]::new($false)
 $payload=[pscustomobject]@{
   generatedAt=$nowIso; generatedAtBR=$nowBR; taxMultiplier=$TAX; product='MPI'
   meta=$mBuilt; google=$gBuilt
+  ob=[pscustomobject]@{ daily=@($obDaily) }
 }
 $json=$payload | ConvertTo-Json -Depth 12 -Compress
 [IO.File]::WriteAllText((Join-Path $root 'data.js'), ("window.MPI="+$json+";"), $utf8)
