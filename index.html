@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>MPI · Dashboard de Vendas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@1,500;1,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?t=20260727a">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="editband">Funil de Venda Direta · Produto MPI · Meta &amp; Google Ads</div>
+
+  <header class="top">
+    <div class="brand">
+      <svg class="blogo" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs><linearGradient id="lg" x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0" stop-color="#12a874"/><stop offset="1" stop-color="#5fe3b0"/></linearGradient></defs>
+        <rect x="6" y="6" width="52" height="52" rx="13" fill="url(#lg)" opacity=".14"/>
+        <path d="M13 44 L26 30 L35 38 L52 19" fill="none" stroke="url(#lg)" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="52" cy="19" r="4.6" fill="#e8b64a"/>
+        <path d="M44 18h9v9" fill="none" stroke="#e8b64a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div>
+        <div class="logo"><span class="m">M</span><span class="p">PI</span><span class="i">· Vendas</span></div>
+        <div class="brand-tag">Mapa do Primeiro Investimento · funil de venda direta</div>
+      </div>
+    </div>
+    <div class="top-right">
+      <div class="updated">Atualizado <b id="updated">—</b><span class="live">● ao vivo</span></div>
+      <div class="periods" id="periods"></div>
+    </div>
+  </header>
+
+  <div class="coverage" id="coverage"></div>
+
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="geral">Visão Geral</button>
+    <button class="tab" data-tab="meta"><span class="tdot" style="background:#5b9dff"></span>Meta Ads</button>
+    <button class="tab" data-tab="google"><span class="tdot" style="background:#f4a93b"></span>Google / YouTube</button>
+  </nav>
+
+  <!-- ============ GERAL ============ -->
+  <section class="panel-tab" id="tab-geral">
+    <div class="quad" id="geralQuad"></div>
+    <div class="row-2">
+      <div class="card">
+        <div class="card-h">Meta × Google <span class="hint">participação no período</span></div>
+        <div id="geralSplit"></div>
+      </div>
+      <div class="card">
+        <div class="card-h">Comparativo por origem <span class="hint">imposto (+13,85%) só no Meta</span></div>
+        <div class="table-scroll"><table class="tbl" id="geralCmp"></table></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h">Visão diária — todas as vendas <span class="hint">mais recente no topo · investimento c/ imposto (Meta) + Google · ROAS verde ≥ 1,00</span></div>
+      <div class="table-scroll"><table class="tbl" id="geralDaily"></table></div>
+    </div>
+  </section>
+
+  <!-- ============ META ============ -->
+  <section class="panel-tab hidden" id="tab-meta">
+    <div class="funil-grid">
+      <div class="kpi-col" id="m-kpi"></div>
+      <div class="card" style="margin-bottom:0">
+        <div class="card-h">Funil de venda <span class="hint">Meta Ads · imposto incluso · seta = vs. período anterior</span></div>
+        <div id="m-funnel"></div>
+      </div>
+    </div>
+    <div class="chart-col" style="margin-bottom:16px">
+      <div class="row-2">
+        <div class="card"><div class="card-h">Vendas × Faturamento por dia</div><div id="m-chartSales"></div></div>
+        <div class="card"><div class="card-h">Investimento × ROAS por dia <span class="hint">barras = gasto c/ imposto · linha = ROAS</span></div><div id="m-chartRoas"></div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h">💡 Insights — acelerar &amp; pausar <span class="hint">campanhas e anúncios que puxam ou derrubam o retorno no período</span></div>
+      <div class="ins-grid" id="m-insights"></div>
+    </div>
+    <div class="card">
+      <div class="card-h">Visão diária <span class="hint">CAC e ROAS coloridos vs. mediana do período</span></div>
+      <div class="table-scroll"><table class="tbl" id="m-daily"></table></div>
+    </div>
+    <div class="card">
+      <div class="card-h">Otimização — Campanha › Anúncio
+        <span class="hint">clique numa <b>campanha</b> p/ abrir os anúncios (criativos) · ROAS, CAC e ação por criativo</span></div>
+      <div class="tree-legend" id="m-treeLegend"></div>
+      <div class="table-scroll"><table class="tbl tree" id="m-tree"></table></div>
+    </div>
+  </section>
+
+  <!-- ============ GOOGLE ============ -->
+  <section class="panel-tab hidden" id="tab-google">
+    <div class="funil-grid">
+      <div class="kpi-col" id="g-kpi"></div>
+      <div class="card" style="margin-bottom:0">
+        <div class="card-h">Funil de venda <span class="hint">Google / YouTube · sem imposto · seta = vs. período anterior</span></div>
+        <div id="g-funnel"></div>
+      </div>
+    </div>
+    <div class="chart-col" style="margin-bottom:16px">
+      <div class="row-2">
+        <div class="card"><div class="card-h">Vendas × Faturamento por dia</div><div id="g-chartSales"></div></div>
+        <div class="card"><div class="card-h">Investimento × ROAS por dia <span class="hint">barras = gasto · linha = ROAS</span></div><div id="g-chartRoas"></div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h">💡 Insights — acelerar &amp; pausar <span class="hint">campanhas e anúncios que puxam ou derrubam o retorno no período</span></div>
+      <div class="ins-grid" id="g-insights"></div>
+    </div>
+    <div class="card">
+      <div class="card-h">Visão diária <span class="hint">CAC e ROAS coloridos vs. mediana do período</span></div>
+      <div class="table-scroll"><table class="tbl" id="g-daily"></table></div>
+    </div>
+    <div class="card">
+      <div class="card-h">Otimização — Campanha › Anúncio
+        <span class="hint">clique numa <b>campanha</b> p/ abrir os anúncios (criativos) · ROAS, CAC e ação por criativo</span></div>
+      <div class="tree-legend" id="g-treeLegend"></div>
+      <div class="table-scroll"><table class="tbl tree" id="g-tree"></table></div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <span>MPI · dados agregados, somente leitura · imposto Meta ×<b id="taxf">1,1385</b> incluso no investimento e nas métricas · Google sem imposto · faturamento = valor líquido da venda (após taxas do gateway) · vendas atribuídas por UTM (origem, campanha e criativo)</span>
+  </footer>
+</div>
+
+<script src="data.js?t=20260727a"></script>
+<script src="app.js?t=20260727a"></script>
+</body>
+</html>
