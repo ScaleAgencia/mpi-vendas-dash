@@ -219,7 +219,7 @@ function actTag(n,medRoas){
   if(r<=0.6) return {t:'Revisar',c:'act-rev'};
   return {t:'Manter',c:'act-mant'};
 }
-function metricsCells(n,medRoas,medCac){ var roas=dv(n.rev,n.spend), cac=n.sales>0?dv(n.spend,n.sales):null, tag=actTag(n,medRoas);
+function metricsCells(n,medRoas,medCac){ var roas=dv(n.rev,n.spend), cac=(n.sales>0&&n.spend>0)?dv(n.spend,n.sales):null, tag=actTag(n,medRoas);
   return '<td class="num">'+money0(n.spend)+'</td>'
     +'<td class="num">'+intf(n.sales)+'</td>'
     +'<td class="num">'+(cac!=null?'<span class="cac-pill '+cacClass(cac,medCac)+'">'+money0(cac)+'</span>':'—')+'</td>'
@@ -230,24 +230,52 @@ function treeRow(n,lvl,key,hasKids,medR,medC){
   var caret=hasKids?'<span class="caret'+(expanded[curKey][key]?' open':'')+'">▶</span>':'<span class="caret" style="opacity:.2">•</span>';
   return '<tr class="lvl'+lvl+(hasKids?' parent':'')+'" data-key="'+encodeURIComponent(key)+'"><td><span class="name" title="'+esc(n.full||n.name)+'">'+caret+' '+esc(n.name)+'</span></td>'+metricsCells(n,medR,medC)+'</tr>';
 }
-function sortKids(obj){ return Object.keys(obj).sort(function(x,y){ return (obj[y].rev)-(obj[x].rev) || obj[y].spend-obj[x].spend; }); }
+// ordenacao clicavel: sortValOf devolve valor onde MENOR = MELHOR (1o clique = melhor->pior)
+var treeSort={meta:{key:'rev',rev:false},google:{key:'rev',rev:false}};
+var ACT_RANK={'Acelerar':0,'Manter':1,'Revisar':2,'Pausar':3,'s/ gasto':4,'Dado insuf.':5};
+var TREE_COLS=[{k:'name',l:'Campanha › Anúncio'},{k:'spend',l:'Gasto'},{k:'sales',l:'Vendas'},{k:'cac',l:'CAC'},{k:'rev',l:'Faturamento'},{k:'roas',l:'ROAS'},{k:'act',l:'Ação'}];
+function sortValOf(key,n,medR){
+  if(key==='spend') return -(n.spend||0);
+  if(key==='sales') return -(n.sales||0);
+  if(key==='rev')   return -(n.rev||0);
+  if(key==='cac')   return (n.sales>0&&n.spend>0)?dv(n.spend,n.sales):Infinity;
+  if(key==='roas')  return n.spend>0?-dv(n.rev,n.spend):Infinity;
+  if(key==='act'){ var r=ACT_RANK[actTag(n,medR).t]; return r==null?9:r; }
+  return 0;
+}
 var curKey='meta';
 function renderTree(cfg,rng){
-  curKey=cfg.pfx==='m'?'meta':'google';
+  var sk=cfg.pfx==='m'?'meta':'google'; curKey=sk;
+  var ss=treeSort[sk];
   var rows=cfg.S._grain.filter(function(r){return inRange(r.date,rng);});
-  var camps=buildTree(rows), order=sortKids(camps);
-  var leafR=[],leafC=[]; order.forEach(function(cK){ if(cK==='SEM_RASTREIO')return; var c=camps[cK]; Object.keys(c.kids).forEach(function(aK){ var an=c.kids[aK]; if(an.spend>0&&an.sales>0){leafR.push(dv(an.rev,an.spend));leafC.push(dv(an.spend,an.sales));} }); });
+  var camps=buildTree(rows);
+  var leafR=[],leafC=[]; Object.keys(camps).forEach(function(cK){ if(cK==='SEM_RASTREIO')return; var c=camps[cK]; Object.keys(c.kids).forEach(function(aK){ var an=c.kids[aK]; if(an.spend>0&&an.sales>0){leafR.push(dv(an.rev,an.spend));leafC.push(dv(an.spend,an.sales));} }); });
   var medR=median(leafR), medC=median(leafC);
-  if(!treeInit[curKey]){ order.slice(0,3).forEach(function(cK){ expanded[curKey]['c:'+cK]=true; }); treeInit[curKey]=true; }
-  var head='<thead><tr><th>Campanha › Anúncio</th><th>Gasto</th><th>Vendas</th><th>CAC</th><th>Faturamento</th><th>ROAS</th><th>Ação</th></tr></thead>';
+  function cmp(a,b){
+    if(ss.key==='name'){ var rn=String(a.name).localeCompare(String(b.name),'pt',{numeric:true}); return ss.rev?-rn:rn; }
+    var va=sortValOf(ss.key,a,medR), vb=sortValOf(ss.key,b,medR);
+    var na=!isFinite(va), nb=!isFinite(vb);
+    if(na&&nb) return (b.rev||0)-(a.rev||0);
+    if(na) return 1; if(nb) return -1;   // sem dado (—) sempre por ultimo
+    var r=va-vb; if(r===0){ r=(b.rev||0)-(a.rev||0); }
+    return ss.rev?-r:r;
+  }
+  function skeys(obj){ return Object.keys(obj).sort(function(x,y){ return cmp(obj[x],obj[y]); }); }
+  var order=skeys(camps);
+  if(!treeInit[sk]){ order.slice(0,3).forEach(function(cK){ expanded[sk]['c:'+cK]=true; }); treeInit[sk]=true; }
+  var head='<thead><tr>'+TREE_COLS.map(function(c){ var on=ss.key===c.k;
+    return '<th class="sortable'+(on?' sorton':'')+'" data-col="'+c.k+'">'+c.l+(on?' <span class="sarr">'+(ss.rev?'▲':'▼')+'</span>':'')+'</th>'; }).join('')+'</tr></thead>';
   var out=[];
   order.forEach(function(cK){ var c=camps[cK],cKey='c:'+cK,cHas=Object.keys(c.kids).length>0; out.push(treeRow(c,0,cKey,cHas,medR,medC));
-    if(expanded[curKey][cKey]){ sortKids(c.kids).forEach(function(aK){ out.push(treeRow(c.kids[aK],1,cKey+'|a:'+aK,false,medR,medC)); }); } });
+    if(expanded[sk][cKey]){ skeys(c.kids).forEach(function(aK){ out.push(treeRow(c.kids[aK],1,cKey+'|a:'+aK,false,medR,medC)); }); } });
   if(!out.length) out.push('<tr><td colspan="7" class="empty">Sem dados no período.</td></tr>');
-  el(cfg.pfx+'-tree').innerHTML=head+'<tbody>'+out.join('')+'</tbody>';
-  el(cfg.pfx+'-treeLegend').innerHTML='<span><span class="act act-acel">Acelerar</span> ROAS ≥ 1,2× a mediana</span><span><span class="act act-rev">Revisar</span> ROAS ≤ 0,6×</span><span><span class="act act-pause">Pausar</span> gastou e não vendeu</span><span style="color:var(--muted2)">ROAS/CAC coloridos · ordenado por faturamento</span>';
-  Array.prototype.forEach.call(el(cfg.pfx+'-tree').querySelectorAll('tr.parent'),function(tr){
-    tr.addEventListener('click',function(){ var k=decodeURIComponent(tr.getAttribute('data-key')); expanded[curKey][k]=!expanded[curKey][k]; renderTree(cfg,rangeFor(period)); }); });
+  var tEl=el(cfg.pfx+'-tree'); tEl.innerHTML=head+'<tbody>'+out.join('')+'</tbody>';
+  el(cfg.pfx+'-treeLegend').innerHTML='<span><span class="act act-acel">Acelerar</span> ROAS ≥ 1,2× a mediana</span><span><span class="act act-rev">Revisar</span> ROAS ≤ 0,6×</span><span><span class="act act-pause">Pausar</span> gastou e não vendeu</span><span style="color:var(--muted2)">clique num cabeçalho p/ ordenar (melhor→pior); clique de novo p/ inverter</span>';
+  Array.prototype.forEach.call(tEl.querySelectorAll('th.sortable'),function(th){
+    th.addEventListener('click',function(){ var k=th.getAttribute('data-col'); var s=treeSort[sk];
+      if(s.key===k){ s.rev=!s.rev; } else { s.key=k; s.rev=false; } renderTree(cfg,rangeFor(period)); }); });
+  Array.prototype.forEach.call(tEl.querySelectorAll('tr.parent'),function(tr){
+    tr.addEventListener('click',function(){ var k=decodeURIComponent(tr.getAttribute('data-key')); expanded[sk][k]=!expanded[sk][k]; renderTree(cfg,rangeFor(period)); }); });
 }
 
 /* =================== INSIGHTS (acelerar & pausar) =================== */

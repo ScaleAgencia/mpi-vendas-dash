@@ -125,6 +125,10 @@ b{font-weight:700}
 .tbl{width:100%;border-collapse:collapse;font-size:12.5px}
 .tbl th{text-align:right;color:var(--muted);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--bg2);font-size:11px;text-transform:uppercase;letter-spacing:.3px;z-index:2}
 .tbl th:first-child{text-align:left}
+.tbl th.sortable{cursor:pointer;user-select:none;transition:color .12s}
+.tbl th.sortable:hover{color:var(--ink2)}
+.tbl th.sorton{color:var(--grn2)}
+.tbl th .sarr{font-size:9px;margin-left:2px;vertical-align:middle}
 .tbl td{text-align:right;padding:7px 10px;border-bottom:1px solid #14261e;white-space:nowrap}
 .tbl td:first-child{text-align:left}
 .tbl tbody tr:hover{background:rgba(255,255,255,.02)}
