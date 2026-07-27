@@ -2,7 +2,7 @@ name: Refresh MPI Vendas (3h)
 
 on:
   schedule:
-    - cron: '23 */3 * * *'   # backup a cada 3h (minuto :23 p/ fugir do pico) — best effort
+    - cron: '23 */3 * * *'   # backup a cada 3h (minuto :23 p/ fugir do pico) - best effort
   workflow_dispatch:          # gatilho confiavel = cron-job.org faz POST aqui
 
 permissions:
@@ -31,9 +31,9 @@ jobs:
           $ok = $false
           for ($i=0; $i -lt 5; $i++) {
             git fetch origin main
-            git reset --soft origin/main        # reparenta: mantem nosso data.js recem-gerado, sem rebase/conflito
+            git reset --soft origin/main
             git add data.js
-            if (-not (git status --porcelain data.js)) { Write-Host "data.js identico ao origin — nada a publicar"; $ok=$true; break }
+            if (-not (git status --porcelain data.js)) { Write-Host "data.js igual ao origin, nada a publicar"; $ok=$true; break }
             git commit -m ("auto: cloud " + (Get-Date -Format 'yyyy-MM-dd HH:mm'))
             git push origin HEAD:main
             if ($LASTEXITCODE -eq 0) { $ok=$true; break }
@@ -52,7 +52,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
-      - name: Monta _site (so arquivos publicos — sem CSV/PII)
+      - name: Monta _site (so arquivos publicos - sem CSV/PII)
         run: |
           mkdir -p _site
           cp index.html app.js styles.css data.js .nojekyll _site/
