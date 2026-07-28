@@ -90,8 +90,10 @@ var CFG={
 /* =================== KPI COLUMN =================== */
 function subRow(l,v,tr){ return '<div class="sub-row"><span class="s-l">'+l+'</span><span class="s-v">'+v+(tr||'')+'</span></div>'; }
 function kpiCard(cls,label,val,subs){ return '<div class="kpi-card'+(cls?' '+cls:'')+'"><div class="kpi-main"><div class="m-lab">'+label+'</div><div class="m-val">'+val+'</div></div><div class="kpi-sub">'+subs+'</div></div>'; }
-function renderKpi(cfg,a,p){
+function renderKpi(cfg,a,p,ob){
+  ob=ob||{sales:0,rev:0};
   var roas=dv(a.rev,a.spend), lucro=a.rev-a.spend, cac=dv(a.spend,a.sales), ticket=dv(a.rev,a.sales);
+  var fatTotal=a.rev+ob.rev, roasOB=dv(fatTotal,a.spend);
   var taxaCompra = cfg.hasCheckout ? dv(a.sales,a.checkout) : dv(a.sales,a.clicks);
   var taxaLbl = cfg.hasCheckout ? 'Checkout → venda' : 'Clique → venda';
   var hero='<div class="kpi-hero"><div class="h-lab">Investimento'+(cfg.taxed?' com imposto':'')+'</div>'
@@ -103,6 +105,10 @@ function renderKpi(cfg,a,p){
   var cards='';
   cards+=kpiCard('hl','Faturamento',money0(a.rev),
     subLucro + subRow('Ticket médio', a.sales?money(ticket):'—', trendHTML(ticket,dv(p.rev,p.sales),true)));
+  cards+=kpiCard('gold','Faturamento Total',money0(fatTotal),
+    subRow('Só MPI', money0(a.rev),'')
+    + subRow('Order bump', '<b style="color:var(--gold2)">'+money0(ob.rev)+'</b>','')
+    + subRow('ROAS c/ OB', '<b>'+roasf(roasOB)+'</b>',''));
   cards+=kpiCard('hl','Vendas',intf(a.sales),
     subRow('CAC', a.sales?money(cac):'—', trendHTML(cac,dv(p.spend,p.sales),false))
     + subRow(taxaLbl, pct(taxaCompra*100), trendHTML(taxaCompra,cfg.hasCheckout?dv(p.sales,p.checkout):dv(p.sales,p.clicks),true)));
@@ -325,7 +331,7 @@ function combineDaily(rng){
   [META,GOOG].forEach(function(S){ S.daily.forEach(function(d){ if(!isDate(d.date)||!inRange(d.date,rng))return; var o=m[d.date]||(m[d.date]={date:d.date,spend:0,spendRaw:0,sales:0,rev:0}); o.spend+=d.spend||0;o.spendRaw+=d.spendRaw||0;o.sales+=d.sales||0;o.rev+=d.rev||0; }); });
   return Object.keys(m).map(function(k){return m[k];}).sort(function(a,b){return a.date.localeCompare(b.date);});
 }
-function qcard(big,lab,val,sub){ return '<div class="qcard'+(big?' big':'')+'"><div class="q-l">'+lab+'</div><div class="q-v">'+val+'</div>'+(sub?'<div class="q-s">'+sub+'</div>':'')+'</div>'; }
+function qcard(cls,lab,val,sub){ return '<div class="qcard'+(cls?' '+cls:'')+'"><div class="q-l">'+lab+'</div><div class="q-v">'+val+'</div>'+(sub?'<div class="q-s">'+sub+'</div>':'')+'</div>'; }
 function obTile(big,lab,val,sub){ return '<div class="obtile'+(big?' big':'')+'"><div class="ot-l">'+lab+'</div><div class="ot-v">'+val+'</div><div class="ot-s">'+sub+'</div></div>'; }
 // agrega order bumps no periodo (srcFilter: 'm'|'g'|null=ambos)
 function obAggFor(rng,srcFilter){
@@ -406,16 +412,18 @@ function renderGeral(rng){
   var roas=dv(rev,spend), lucro=rev-spend, cac=dv(spend,sales), ticket=dv(rev,sales);
   // ----- order bumps (period-reactive) -----
   var ob=obAggFor(rng,null);
-  var fatTotal=rev+ob.rev, lucroOB=fatTotal-spend;
+  var fatTotal=rev+ob.rev, lucroOB=fatTotal-spend, roasOB=dv(fatTotal,spend);
   el('geralQuad').innerHTML=
-    qcard(false,'Investimento Gerenciador',money0(spendRaw),'sem imposto')
-    +qcard(false,'Investimento c/ Imposto',money0(spend),'imposto Meta +13,85%')
-    +qcard(true,'Faturamento',money0(rev),'ticket médio <b>'+money(ticket)+'</b>')
-    +qcard(false,'Vendas',intf(sales),'CAC <b>'+money0(cac)+'</b>')
-    +qcard(true,'ROAS c/ Imposto',roasf(roas),(roas>=1?'operação no lucro':'abaixo do break-even'))
-    +qcard(false,'Lucro',(lucro>=0?'':'')+money0(lucro),(lucro>=0?'<span class="pos">positivo</span>':'<span class="neg">negativo</span>')+' (fat − invest)')
-    +qcard(false,'Meta',intf(am.sales)+' vendas','ROAS '+roasf(dv(am.rev,am.spend))+' · '+money0(am.rev))
-    +qcard(false,'Google / YouTube',intf(ag.sales)+' vendas','ROAS '+roasf(dv(ag.rev,ag.spend))+' · '+money0(ag.rev));
+    qcard('','Investimento Gerenciador',money0(spendRaw),'sem imposto')
+    +qcard('','Investimento c/ Imposto',money0(spend),'imposto Meta +13,85%')
+    +qcard('','Faturamento',money0(rev),'só MPI · ticket <b>'+money(ticket)+'</b>')
+    +qcard('gold','Faturamento Total',money0(fatTotal),'MPI + order bump (<b>'+money0(ob.rev)+'</b> OB)')
+    +qcard('','Vendas',intf(sales),'CAC <b>'+money0(cac)+'</b>')
+    +qcard('big','ROAS c/ Imposto',roasf(roas),'só MPI · '+(roas>=1?'no lucro':'abaixo do break-even'))
+    +qcard('gold','ROAS c/ OB',roasf(roasOB),'com order bump')
+    +qcard('','Lucro',money0(lucroOB),(lucroOB>=0?'<span class="pos">positivo</span>':'<span class="neg">negativo</span>')+' · fat. total − invest')
+    +qcard('','Meta',intf(am.sales)+' vendas','ROAS '+roasf(dv(am.rev,am.spend))+' · '+money0(am.rev))
+    +qcard('','Google / YouTube',intf(ag.sales)+' vendas','ROAS '+roasf(dv(ag.rev,ag.spend))+' · '+money0(ag.rev));
   // split Meta x Google
   function splitBar(title,vm,vg){ var t=vm+vg; if(t<=0)t=1; var wm=vm/t*100, wg=vg/t*100;
     return '<div style="font-size:11.5px;color:var(--muted);margin:2px 0 3px">'+title+'</div><div class="split">'
@@ -460,8 +468,9 @@ function renderGeral(rng){
 /* =================== ORQUESTRAÇÃO =================== */
 function renderSource(cfg,rng,prng){
   var a=aggDaily(cfg.S,rng), p=aggDaily(cfg.S,prng), days=daysInRange(cfg.S,rng);
-  renderKpi(cfg,a,p); renderFunnel(cfg,a,p); renderChartSales(cfg,days); renderChartRoas(cfg,days);
-  renderOBcard(cfg.pfx+'-', obAggFor(rng, cfg.pfx==='m'?'m':'g'), a.sales, a.rev, a.spend);
+  var ob=obAggFor(rng, cfg.pfx==='m'?'m':'g');
+  renderKpi(cfg,a,p,ob); renderFunnel(cfg,a,p); renderChartSales(cfg,days); renderChartRoas(cfg,days);
+  renderOBcard(cfg.pfx+'-', ob, a.sales, a.rev, a.spend);
   renderInsights(cfg,rng); renderDaily(cfg,rng); renderTree(cfg,rng);
 }
 function renderAll(){ var rng=rangeFor(period), prng=prevRange(rng);

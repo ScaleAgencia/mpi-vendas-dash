@@ -184,6 +184,8 @@ b{font-weight:700}
 @media(max-width:520px){.quad{grid-template-columns:1fr}}
 .qcard{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:12px;padding:15px 16px;position:relative;overflow:hidden}
 .qcard.big{background:linear-gradient(135deg,var(--grn-dim),transparent),linear-gradient(180deg,var(--panel2),var(--panel));border-color:rgba(35,194,134,.3)}
+.qcard.gold{background:linear-gradient(135deg,var(--gold-dim),transparent),linear-gradient(180deg,var(--panel2),var(--panel));border-color:rgba(232,182,74,.34)}
+.qcard.gold .q-v{color:var(--gold2)}
 .qcard .q-l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;font-weight:600}
 .qcard .q-v{font-size:27px;font-weight:800;letter-spacing:-.7px;margin-top:5px}
 .qcard.big .q-v{color:var(--grn2)}
