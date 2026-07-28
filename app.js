@@ -45,13 +45,14 @@ var B=boundsOf(), minDate=B[0], maxDate=B[1];
 function addDays(iso,n){ var p=iso.split('-'); var dt=new Date(Date.UTC(+p[0],+p[1]-1,+p[2])); dt.setUTCDate(dt.getUTCDate()+n); return dt.toISOString().slice(0,10); }
 function daysBetween(a,b){ var pa=a.split('-'),pb=b.split('-'); return Math.round((Date.UTC(+pb[0],+pb[1]-1,+pb[2])-Date.UTC(+pa[0],+pa[1]-1,+pa[2]))/86400000); }
 function inRange(dt,r){ return dt>=r[0] && dt<=r[1]; }
-var PRESETS=[{k:'hoje',label:'Hoje'},{k:'ontem',label:'Ontem'},{k:'7d',label:'7 dias'},{k:'30d',label:'30 dias'},{k:'90d',label:'90 dias'},{k:'tudo',label:'Tudo'}];
+var PRESETS=[{k:'hoje',label:'Hoje'},{k:'ontem',label:'Ontem'},{k:'mes',label:'Este mês'},{k:'7d',label:'7 dias'},{k:'30d',label:'30 dias'},{k:'90d',label:'90 dias'},{k:'tudo',label:'Tudo'}];
 var period='tudo', customRange=null;
 function rangeFor(k){
   if(k==='custom'&&customRange) return customRange;
   if(k==='tudo') return [minDate,maxDate];
   if(k==='hoje') return [maxDate,maxDate];
   if(k==='ontem'){ var y=addDays(maxDate,-1); return [y,y]; }
+  if(k==='mes')  return [maxDate.slice(0,7)+'-01', maxDate];   // do dia 1 do mes atual ate a ultima data
   if(k==='7d')  return [addDays(maxDate,-6),maxDate];
   if(k==='30d') return [addDays(maxDate,-29),maxDate];
   if(k==='90d') return [addDays(maxDate,-89),maxDate];
