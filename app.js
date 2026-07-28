@@ -351,6 +351,40 @@ function renderOBcard(pfx,ob,mpiSales,mpiRev,spend){
       +'<div class="obtrack"><span style="width:'+w.toFixed(1)+'%"></span></div></div>'; }).join('')
     +'<div class="ob-foot">Order bump = produto levado junto no checkout do MPI. Faturamento líquido; ROAS c/ OB = (faturamento MPI + OB) ÷ investimento'+(pfx==='g-'?'':' c/ imposto')+'.</div>';
 }
+/* =================== META DE INVESTIMENTO (mensal, R$ 250k) =================== */
+var INVEST_GOAL=250000;   // meta de investimento gerenciador por mes
+var MONTHS=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+function monthLabel(iso){ return MONTHS[(+iso.slice(5,7))-1]+' '+iso.slice(0,4); }
+function daysInMonthOf(iso){ return new Date(Date.UTC(+iso.slice(0,4), +iso.slice(5,7), 0)).getUTCDate(); }
+function investIn(range){ var raw=0; [META,GOOG].forEach(function(S){ S.daily.forEach(function(d){ if(isDate(d.date)&&inRange(d.date,range)) raw+=d.spendRaw||0; }); }); return raw; }
+function gt(hero,lab,val,sub,cls){ return '<div class="gtile'+(hero?' hero':'')+'"><div class="gt-l">'+lab+'</div><div class="gt-v'+(cls?' '+cls:'')+'">'+val+'</div><div class="gt-s">'+sub+'</div></div>'; }
+function renderGoal(){
+  var host=el('geralGoal'); if(!host||!maxDate) return;
+  var mStart=maxDate.slice(0,7)+'-01', mDays=daysInMonthOf(maxDate), dayN=+maxDate.slice(8,10);
+  var inv=investIn([mStart,maxDate]), goal=INVEST_GOAL, falta=Math.max(0,goal-inv), pct=dv(inv,goal);
+  var dr=mDays-dayN, perDay=dr>0?falta/dr:falta;                 // necessario/dia nos dias restantes
+  var pace=dayN>0?inv/dayN:0, proj=pace*mDays, target=goal*(dayN/mDays), ahead=inv-target;
+  var done=inv>=goal, onTrack=inv>=target, fillCol=(done||onTrack)?COL.grn:'#f0a93b';
+  var projCls=proj>=goal?'pos':'neg', projSub=proj>=goal?'bate a meta no ritmo atual':money0(goal-proj)+' abaixo da meta';
+  var statusV,statusCls,statusSub;
+  if(done){ statusV='Meta batida 🎉'; statusCls='pos'; statusSub='investimento do mês completo'; }
+  else if(onTrack){ statusV='No ritmo'; statusCls='pos'; statusSub=money0(ahead)+' adiantado vs. ideal de hoje'; }
+  else { statusV='Atrasado'; statusCls='neg'; statusSub=money0(-ahead)+' atrás do ideal de hoje'; }
+  host.innerHTML=
+    '<div class="goal-head"><span class="goal-month">'+monthLabel(maxDate)+' · dia '+dayN+' de '+mDays+'</span>'
+    + '<span class="goal-pct"><b>'+nf1.format(pct*100)+'%</b> da meta</span></div>'
+    + '<div class="goal-bar"><span class="goal-fill" style="width:'+(clamp(pct)*100).toFixed(1)+'%;background:'+fillCol+'"></span>'
+    +   '<span class="goal-mark" style="left:'+(clamp(dayN/mDays)*100).toFixed(1)+'%" title="onde deveria estar hoje"></span></div>'
+    + '<div class="goal-scale"><span>Investido <b>'+money0(inv)+'</b></span>'
+    +   '<span class="gm">▲ ideal hoje '+money0(target)+'</span>'
+    +   '<span>Meta <b>'+money0(goal)+'</b></span></div>'
+    + '<div class="goal-tiles">'
+    +   gt(true,'Necessário por dia', done?'✓ meta batida':money0(perDay), done?'sobra '+money0(inv-goal):'nos próximos <b>'+dr+'</b> dia'+(dr===1?'':'s')+' · falta '+money0(falta),'')
+    +   gt(false,'Ritmo atual', money0(pace)+'/dia', 'média dos '+dayN+' dias do mês','')
+    +   gt(false,'Projeção do mês', money0(proj), projSub, projCls)
+    +   gt(false,'Status', statusV, statusSub, statusCls)
+    + '</div>';
+}
 function renderGeral(rng){
   var am=aggDaily(META,rng), ag=aggDaily(GOOG,rng);
   var spend=am.spend+ag.spend, spendRaw=am.spendRaw+ag.spendRaw, sales=am.sales+ag.sales, rev=am.rev+ag.rev;
@@ -443,5 +477,5 @@ function initCoverage(){ el('updated').textContent=D.generatedAtBR||'—'; el('t
     +' · <b>'+intf((tm.sales||0)+(tg.sales||0))+'</b> vendas MPI atribuídas ao tráfego pago ('+intf(tm.sales||0)+' Meta · '+intf(tg.sales||0)+' Google).'; }
 
 if(!META.daily.length && !GOOG.daily.length){ el('coverage').innerHTML='<b>Sem dados.</b> Rode o build.ps1 para gerar o data.js.'; }
-else { initCoverage(); initPeriods(); initTabs(); renderAll(); }
+else { initCoverage(); initPeriods(); initTabs(); renderAll(); renderGoal(); }
 })();
