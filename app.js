@@ -97,7 +97,8 @@ function renderKpi(cfg,a,p){
   var hero='<div class="kpi-hero"><div class="h-lab">Investimento'+(cfg.taxed?' com imposto':'')+'</div>'
     +'<div class="h-val">'+money(a.spend)+'</div>'
     +'<div class="h-foot"><span>Gerenciador <b>'+money0(a.spendRaw)+'</b></span>'
-    +'<span>'+(cfg.taxed?'imposto <b>+13,85%</b>':'sem imposto')+'</span></div></div>';
+    +'<span>'+(cfg.taxed?'imposto <b>+13,85%</b>':'sem imposto')+'</span></div>'
+    +goalStrip()+'</div>';
   var subLucro = subRow('Lucro (fat. − invest.)', '<span class="'+(lucro>=0?'pos':'neg')+'">'+money0(lucro)+'</span>', '');
   var cards='';
   cards+=kpiCard('hl','Faturamento',money0(a.rev),
@@ -359,13 +360,26 @@ function monthLabel(iso){ return MONTHS[(+iso.slice(5,7))-1]+' '+iso.slice(0,4);
 function daysInMonthOf(iso){ return new Date(Date.UTC(+iso.slice(0,4), +iso.slice(5,7), 0)).getUTCDate(); }
 function investIn(range){ var raw=0; [META,GOOG].forEach(function(S){ S.daily.forEach(function(d){ if(isDate(d.date)&&inRange(d.date,range)) raw+=d.spendRaw||0; }); }); return raw; }
 function gt(hero,lab,val,sub,cls){ return '<div class="gtile'+(hero?' hero':'')+'"><div class="gt-l">'+lab+'</div><div class="gt-v'+(cls?' '+cls:'')+'">'+val+'</div><div class="gt-s">'+sub+'</div></div>'; }
-function renderGoal(){
-  var host=el('geralGoal'); if(!host||!maxDate) return;
+function goalData(){
+  if(!maxDate) return null;
   var mStart=maxDate.slice(0,7)+'-01', mDays=daysInMonthOf(maxDate), dayN=+maxDate.slice(8,10);
   var inv=investIn([mStart,maxDate]), goal=INVEST_GOAL, falta=Math.max(0,goal-inv), pct=dv(inv,goal);
-  var dr=mDays-dayN, perDay=dr>0?falta/dr:falta;                 // necessario/dia nos dias restantes
-  var pace=dayN>0?inv/dayN:0, proj=pace*mDays, target=goal*(dayN/mDays), ahead=inv-target;
-  var done=inv>=goal, onTrack=inv>=target, fillCol=(done||onTrack)?COL.grn:'#f0a93b';
+  var dr=mDays-dayN, perDay=dr>0?falta/dr:falta, pace=dayN>0?inv/dayN:0, target=goal*(dayN/mDays);
+  return {mDays:mDays,dayN:dayN,inv:inv,goal:goal,falta:falta,pct:pct,dr:dr,perDay:perDay,pace:pace,proj:pace*mDays,target:target,ahead:inv-target,done:inv>=goal,onTrack:inv>=target};
+}
+// faixa compacta da meta p/ embutir no hero de investimento (Meta/Google)
+function goalStrip(){
+  var g=goalData(); if(!g) return '';
+  var good=g.done||g.onTrack, col=good?COL.grn:'#f0a93b';
+  return '<div class="hero-goal"><div class="hg-top"><span>🎯 Meta do mês <b>'+money0(g.goal)+'</b> <small>Meta+Google</small></span>'
+    +'<span class="'+(good?'pos':'neg')+'">'+(g.done?'✓ batida':money0(g.perDay)+'/dia · '+g.dr+'d')+'</span></div>'
+    +'<div class="hg-bar"><span style="width:'+(clamp(g.pct)*100).toFixed(1)+'%;background:'+col+'"></span></div>'
+    +'<div class="hg-sub">Investido <b>'+money0(g.inv)+'</b> · '+nf0.format(g.pct*100)+'% · falta '+money0(g.falta)+'</div></div>';
+}
+function renderGoal(){
+  var host=el('geralGoal'); var g=goalData(); if(!host||!g) return;
+  var mDays=g.mDays,dayN=g.dayN,inv=g.inv,goal=g.goal,falta=g.falta,pct=g.pct,dr=g.dr,perDay=g.perDay,pace=g.pace,proj=g.proj,target=g.target,ahead=g.ahead,done=g.done,onTrack=g.onTrack;
+  var fillCol=(done||onTrack)?COL.grn:'#f0a93b';
   var projCls=proj>=goal?'pos':'neg', projSub=proj>=goal?'bate a meta no ritmo atual':money0(goal-proj)+' abaixo da meta';
   var statusV,statusCls,statusSub;
   if(done){ statusV='Meta batida 🎉'; statusCls='pos'; statusSub='investimento do mês completo'; }
