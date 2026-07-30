@@ -232,7 +232,11 @@ function actTag(n,medRoas){
   return {t:'Manter',c:'act-mant'};
 }
 function metricsCells(n,medRoas,medCac){ var roas=dv(n.rev,n.spend), cac=(n.sales>0&&n.spend>0)?dv(n.spend,n.sales):null, tag=actTag(n,medRoas);
+  var cpm=n.impr>0?dv(n.spend,n.impr)*1000:null, ctr=n.impr>0?dv(n.clicks,n.impr)*100:null, cpc=n.clicks>0?dv(n.spend,n.clicks):null;
   return '<td class="num">'+money0(n.spend)+'</td>'
+    +'<td class="num">'+(cpm!=null?money(cpm):'—')+'</td>'
+    +'<td class="num">'+(ctr!=null?pct(ctr):'—')+'</td>'
+    +'<td class="num">'+(cpc!=null?money(cpc):'—')+'</td>'
     +'<td class="num">'+intf(n.sales)+'</td>'
     +'<td class="num">'+(cac!=null?'<span class="cac-pill '+cacClass(cac,medCac)+'">'+money0(cac)+'</span>':'—')+'</td>'
     +'<td class="num">'+money0(n.rev)+'</td>'
@@ -245,11 +249,14 @@ function treeRow(n,lvl,key,hasKids,medR,medC){
 // ordenacao clicavel: sortValOf devolve valor onde MENOR = MELHOR (1o clique = melhor->pior)
 var treeSort={meta:{key:'rev',rev:false},google:{key:'rev',rev:false}};
 var ACT_RANK={'Acelerar':0,'Manter':1,'Revisar':2,'Pausar':3,'s/ gasto':4,'Dado insuf.':5};
-var TREE_COLS=[{k:'name',l:'Campanha › Anúncio'},{k:'spend',l:'Gasto'},{k:'sales',l:'Vendas'},{k:'cac',l:'CAC'},{k:'rev',l:'Faturamento'},{k:'roas',l:'ROAS'},{k:'act',l:'Ação'}];
+var TREE_COLS=[{k:'name',l:'Campanha › Anúncio'},{k:'spend',l:'Gasto'},{k:'cpm',l:'CPM'},{k:'ctr',l:'CTR'},{k:'cpc',l:'CPC'},{k:'sales',l:'Vendas'},{k:'cac',l:'CAC'},{k:'rev',l:'Faturamento'},{k:'roas',l:'ROAS'},{k:'act',l:'Ação'}];
 function sortValOf(key,n,medR){
   if(key==='spend') return -(n.spend||0);
   if(key==='sales') return -(n.sales||0);
   if(key==='rev')   return -(n.rev||0);
+  if(key==='cpm')   return n.impr>0?dv(n.spend,n.impr)*1000:Infinity;
+  if(key==='ctr')   return n.impr>0?-dv(n.clicks,n.impr):Infinity;
+  if(key==='cpc')   return n.clicks>0?dv(n.spend,n.clicks):Infinity;
   if(key==='cac')   return (n.sales>0&&n.spend>0)?dv(n.spend,n.sales):Infinity;
   if(key==='roas')  return n.spend>0?-dv(n.rev,n.spend):Infinity;
   if(key==='act'){ var r=ACT_RANK[actTag(n,medR).t]; return r==null?9:r; }
@@ -281,7 +288,7 @@ function renderTree(cfg,rng){
   order.forEach(function(cK){ var c=camps[cK],cKey='c:'+cK,cHas=Object.keys(c.kids).length>0; out.push(treeRow(c,0,cKey,cHas,medR,medC));
     if(expanded[sk][cKey]){ skeys(c.kids).forEach(function(sK){ var sN=c.kids[sK],sKey=cKey+'|s:'+sK,sHas=Object.keys(sN.kids).length>0; out.push(treeRow(sN,1,sKey,sHas,medR,medC));
       if(expanded[sk][sKey]){ skeys(sN.kids).forEach(function(aK){ out.push(treeRow(sN.kids[aK],2,sKey+'|a:'+aK,false,medR,medC)); }); } }); } });
-  if(!out.length) out.push('<tr><td colspan="7" class="empty">Sem dados no período.</td></tr>');
+  if(!out.length) out.push('<tr><td colspan="10" class="empty">Sem dados no período.</td></tr>');
   var tEl=el(cfg.pfx+'-tree'); tEl.innerHTML=head+'<tbody>'+out.join('')+'</tbody>';
   el(cfg.pfx+'-treeLegend').innerHTML='<span><span class="act act-acel">Acelerar</span> ROAS ≥ 1,2× a mediana</span><span><span class="act act-rev">Revisar</span> ROAS ≤ 0,6×</span><span><span class="act act-pause">Pausar</span> gastou e não vendeu</span><span style="color:var(--muted2)">clique num cabeçalho p/ ordenar (melhor→pior); clique de novo p/ inverter</span>';
   Array.prototype.forEach.call(tEl.querySelectorAll('th.sortable'),function(th){
