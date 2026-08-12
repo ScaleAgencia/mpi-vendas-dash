@@ -420,13 +420,15 @@ function renderGeral(rng){
   // ----- order bumps (period-reactive) -----
   var ob=obAggFor(rng,null);
   var fatTotal=rev+ob.rev, lucroOB=fatTotal-spend, roasOB=dv(fatTotal,spend);
+  var totalSales = sales + ob.sales;
   el('geralQuad').innerHTML=
     qcard('','Investimento Gerenciador',money0(spendRaw),'sem imposto')
     +qcard('','Investimento c/ Imposto',money0(spend),'imposto Meta +13,85%')
     +qcard('','Faturamento',money0(rev),'só MPI · ticket <b>'+money(ticket)+'</b>')
     +qcard('gold','Faturamento Total',money0(fatTotal),'MPI + order bump (<b>'+money0(ob.rev)+'</b> OB)')
-    +qcard('','Vendas',intf(sales),'CAC <b>'+money0(cac)+'</b>')
-    +qcard('big','ROAS c/ Imposto',roasf(roas),'só MPI · '+(roas>=1?'no lucro':'abaixo do break-even'))
+    +qcard('','Vendas',intf(sales),'só MPI · CAC <b>'+money0(cac)+'</b>')
+    +qcard('gold','Vendas Totais',intf(totalSales),'MPI + order bump (<b>'+intf(ob.sales)+'</b> OB)')
+    +qcard('big','ROAS c/ Imposto',roasf(roas),'só MPI')
     +qcard('gold','ROAS c/ OB',roasf(roasOB),'com order bump')
     +qcard('','Lucro',money0(lucroOB),(lucroOB>=0?'<span class="pos">positivo</span>':'<span class="neg">negativo</span>')+' · fat. total − invest')
     +qcard('','Meta',intf(am.sales)+' vendas','ROAS '+roasf(dv(am.rev,am.spend))+' · '+money0(am.rev))
