@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@1,500;1,600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?t=20260727k">
+<link rel="stylesheet" href="styles.css?t=20260727l">
 </head>
 <body>
 <div class="wrap">
@@ -42,6 +42,7 @@
     <button class="tab active" data-tab="geral">Visão Geral</button>
     <button class="tab" data-tab="meta"><span class="tdot" style="background:#5b9dff"></span>Meta Ads</button>
     <button class="tab" data-tab="google"><span class="tdot" style="background:#f4a93b"></span>Google / YouTube</button>
+    <button class="tab" data-tab="historico">📅 Histórico</button>
   </nav>
 
   <!-- ============ GERAL ============ -->
@@ -154,12 +155,27 @@
     </div>
   </section>
 
+  <!-- ============ HISTÓRICO ============ -->
+  <section class="panel-tab hidden" id="tab-historico">
+    <div class="hist-head">
+      <div class="hist-title">📅 Histórico por dia da semana <span class="hint" style="font-weight:500;text-transform:none;letter-spacing:0">atualiza a cada 3h · vendas = MPI · ROAS inclui order bump · exclui o dia de hoje (parcial)</span></div>
+      <div class="hist-win" id="histWin"></div>
+    </div>
+    <div class="card"><div id="histVerdict"></div></div>
+    <div class="row-2">
+      <div class="card"><div class="card-h">🔥 Ranking recente <span class="hint" id="histRecentLbl"></span></div><div id="histRankRecent"></div></div>
+      <div class="card"><div class="card-h">📚 Ranking histórico <span class="hint">todo o período · seta = posição vs. histórico</span></div><div id="histRankAll"></div></div>
+    </div>
+    <div class="card"><div class="card-h">Evolução mês a mês <span class="hint">vendas/dia por dia da semana · quanto mais verde, mais vende · veja se o padrão muda ao longo do tempo</span></div><div class="table-scroll" id="histHeat"></div></div>
+    <div class="card"><div class="card-h">Detalhe por dia da semana <span class="hint">recente (janela escolhida) vs. histórico completo</span></div><div class="table-scroll"><table class="tbl" id="histTable"></table></div></div>
+  </section>
+
   <footer class="foot">
     <span>MPI · dados agregados, somente leitura · imposto Meta ×<b id="taxf">1,1385</b> incluso no investimento e nas métricas · Google sem imposto · faturamento = valor líquido da venda (após taxas do gateway) · vendas atribuídas por UTM (origem, campanha e criativo)</span>
   </footer>
 </div>
 
-<script src="data.js?t=20260727k"></script>
-<script src="app.js?t=20260727k"></script>
+<script src="data.js?t=20260727l"></script>
+<script src="app.js?t=20260727l"></script>
 </body>
 </html>

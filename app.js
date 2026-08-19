@@ -474,6 +474,62 @@ function renderGeral(rng){
   el('geralDaily').innerHTML=head+'<tbody>'+body+'</tbody>'+foot;
 }
 
+/* =================== HISTÓRICO POR DIA DA SEMANA =================== */
+var WD_ORDER=[1,2,3,4,5,6,0], WD_NAME={0:'Domingo',1:'Segunda',2:'Terça',3:'Quarta',4:'Quinta',5:'Sexta',6:'Sábado'}, WD_SHORT={0:'Dom',1:'Seg',2:'Ter',3:'Qua',4:'Qui',5:'Sex',6:'Sáb'};
+var RANK_COL=['#23c286','#4dd39a','#86d979','#c9d24a','#f0c043','#ef9a4a','#f2637e'];
+var histWeeks=8;
+function weekdayOf(iso){ var p=iso.split('-'); return new Date(Date.UTC(+p[0],+p[1]-1,+p[2])).getUTCDay(); }
+function monthShort(mo){ return MONTHS[(+mo.slice(5,7))-1].slice(0,3)+'/'+mo.slice(2,4); }
+function histDaily(){ var m={};
+  [META,GOOG].forEach(function(S){ S.daily.forEach(function(d){ if(!isDate(d.date))return; var o=m[d.date]||(m[d.date]={date:d.date,sales:0,spend:0,rev:0}); o.sales+=d.sales||0;o.spend+=d.spend||0;o.rev+=d.rev||0; }); });
+  OB.forEach(function(o2){ if(m[o2.d]){ m[o2.d].rev+=o2.r||0; } });   // ROAS do historico inclui order bump
+  return Object.keys(m).map(function(k){return m[k];}).filter(function(d){return d.date!==maxDate;}).sort(function(a,b){return a.date.localeCompare(b.date);}); }
+function wdStats(days){ var w={}; for(var i=0;i<7;i++)w[i]={w:i,nDays:0,sales:0,spend:0,rev:0};
+  days.forEach(function(d){ var o=w[weekdayOf(d.date)]; o.nDays++;o.sales+=d.sales;o.spend+=d.spend;o.rev+=d.rev; });
+  for(var j=0;j<7;j++){ var o=w[j]; o.vndDia=o.nDays?o.sales/o.nDays:0; o.roas=dv(o.rev,o.spend); o.cac=o.sales?dv(o.spend,o.sales):0; o.fatDia=o.nDays?o.rev/o.nDays:0; } return w; }
+function rankVol(st){ return [0,1,2,3,4,5,6].slice().sort(function(a,b){ return st[b].vndDia-st[a].vndDia; }); }
+function rankBars(st,order,cmp){ var mx=Math.max.apply(null,order.map(function(w){return st[w].vndDia;}).concat([1]));
+  return order.map(function(w,i){ var o=st[w],frac=o.vndDia/mx,col=RANK_COL[i],medal=i===0?'🥇':(i===1?'🥈':(i===2?'🥉':(i+1)+'º'));
+    var delta=''; if(cmp){ var hp=cmp.indexOf(w),mv=hp-i; delta=mv>0?' <span class="hist-up">▲'+mv+'</span>':(mv<0?' <span class="hist-down">▼'+(-mv)+'</span>':' <span class="hist-eq">=</span>'); }
+    return '<div class="hbrow"><span class="hb-rank">'+medal+'</span><span class="hb-name">'+WD_NAME[w]+delta+'</span>'
+      +'<span class="hb-bar"><span style="width:'+Math.max(6,frac*100).toFixed(0)+'%;background:'+col+'"></span></span>'
+      +'<span class="hb-v">'+nf1.format(o.vndDia)+'<small>/dia</small></span><span class="hb-r">ROAS '+roasf(o.roas)+'</span></div>'; }).join(''); }
+function histHeat(days){ var months=[],wm={};
+  days.forEach(function(d){ var mo=d.date.slice(0,7); if(months.indexOf(mo)<0)months.push(mo); var k=weekdayOf(d.date)+'|'+mo; var o=wm[k]||(wm[k]={s:0,n:0}); o.s+=d.sales;o.n++; });
+  months.sort(); var mx=1; Object.keys(wm).forEach(function(k){ var a=wm[k].s/wm[k].n; if(a>mx)mx=a; });
+  var head='<tr><th>Dia</th>'+months.map(function(mo){return '<th>'+monthShort(mo)+'</th>';}).join('')+'</tr>';
+  var rows=WD_ORDER.map(function(w){ return '<tr><td class="hm-day">'+WD_SHORT[w]+'</td>'+months.map(function(mo){ var o=wm[w+'|'+mo]; if(!o)return '<td class="hm-c">·</td>'; var a=o.s/o.n; var bg='rgba(35,194,134,'+(0.06+0.6*clamp(a/mx)).toFixed(3)+')'; return '<td class="hm-c" style="background:'+bg+'">'+nf0.format(Math.round(a))+'</td>'; }).join('')+'</tr>'; }).join('');
+  return '<table class="hm-table">'+head+rows+'</table>'; }
+function histTableHTML(sAll,sRec){ var rk=rankVol(sRec)[0];
+  var head='<thead><tr><th>Dia da semana</th><th>Vnd/dia (rec.)</th><th>ROAS (rec.)</th><th>CAC (rec.)</th><th>Vnd/dia (hist.)</th><th>ROAS (hist.)</th><th>CAC (hist.)</th></tr></thead>';
+  var body=WD_ORDER.map(function(w){ var r=sRec[w],a=sAll[w];
+    return '<tr'+(w===rk?' class="hist-champ-row"':'')+'><td>'+WD_NAME[w]+(w===rk?' 🥇':'')+'</td>'
+      +'<td class="num">'+nf1.format(r.vndDia)+'</td><td class="num">'+roasf(r.roas)+'</td><td class="num">'+(r.cac?money0(r.cac):'—')+'</td>'
+      +'<td class="num">'+nf1.format(a.vndDia)+'</td><td class="num">'+roasf(a.roas)+'</td><td class="num">'+(a.cac?money0(a.cac):'—')+'</td></tr>'; }).join('');
+  return head+'<tbody>'+body+'</tbody>'; }
+function renderHistorico(){ var all=histDaily(); if(!el('histVerdict'))return;
+  if(all.length<7){ el('histVerdict').innerHTML='<div class="empty">Ainda sem histórico suficiente.</div>'; return; }
+  var last=all[all.length-1].date, rStart=addDays(last,-(histWeeks*7-1));
+  var rec=all.filter(function(d){return d.date>=rStart;});
+  var sAll=wdStats(all), sRec=wdStats(rec), rkA=rankVol(sAll), rkR=rankVol(sRec);
+  var cR=rkR[0], cA=rkA[0], wR=rkR[6], changed=cR!==cA;
+  el('histVerdict').innerHTML='<div class="hv-grid">'
+    +'<div class="hv-box champ"><div class="hv-lab">🏆 Melhor dia agora</div><div class="hv-day">'+WD_NAME[cR]+'</div><div class="hv-stat"><b>'+nf1.format(sRec[cR].vndDia)+'</b> vendas/dia · ROAS <b>'+roasf(sRec[cR].roas)+'</b> · CAC '+money0(sRec[cR].cac)+'</div></div>'
+    +'<div class="hv-box '+(changed?'alert':'ok')+'"><div class="hv-lab">'+(changed?'⚠️ O padrão mudou!':'✓ Padrão consistente')+'</div><div class="hv-msg">'+(changed
+        ?'O melhor dia no histórico geral é <b>'+WD_NAME[cA]+'</b>, mas nas últimas <b>'+histWeeks+' semanas</b> quem lidera é <b>'+WD_NAME[cR]+'</b>. Vale mover orçamento pro novo campeão.'
+        :'<b>'+WD_NAME[cR]+'</b> lidera tanto nas últimas '+histWeeks+' semanas quanto no histórico geral. Segue firme como melhor dia.')+'</div></div>'
+    +'<div class="hv-box worst"><div class="hv-lab">🔻 Pior dia agora</div><div class="hv-day sm">'+WD_NAME[wR]+'</div><div class="hv-stat"><b>'+nf1.format(sRec[wR].vndDia)+'</b> vendas/dia · ROAS '+roasf(sRec[wR].roas)+'</div></div>'
+    +'</div>';
+  el('histRecentLbl').textContent='últimas '+histWeeks+' semanas · '+rec.length+' dias';
+  el('histRankRecent').innerHTML=rankBars(sRec,rkR,rkA);
+  el('histRankAll').innerHTML=rankBars(sAll,rkA,null);
+  el('histHeat').innerHTML=histHeat(all);
+  el('histTable').innerHTML=histTableHTML(sAll,sRec);
+  Array.prototype.forEach.call(el('histWin').querySelectorAll('.hwbtn'),function(b){ b.classList.toggle('on',+b.getAttribute('data-w')===histWeeks); });
+}
+function initHistWin(){ if(!el('histWin'))return; el('histWin').innerHTML=[4,8,12].map(function(w){return '<button class="hwbtn" data-w="'+w+'">'+w+' sem</button>';}).join('');
+  Array.prototype.forEach.call(el('histWin').querySelectorAll('.hwbtn'),function(b){ b.addEventListener('click',function(){ histWeeks=+b.getAttribute('data-w'); renderHistorico(); }); }); }
+
 /* =================== ORQUESTRAÇÃO =================== */
 function renderSource(cfg,rng,prng){
   var a=aggDaily(cfg.S,rng), p=aggDaily(cfg.S,prng), days=daysInRange(cfg.S,rng);
@@ -498,7 +554,7 @@ function initPeriods(){ el('periods').innerHTML=periodsHTML();
   function onDate(){ var s=de.value,e=at.value; if(!s||!e)return; if(s>e){var t=s;s=e;e=t;} if(s<minDate)s=minDate; if(e>maxDate)e=maxDate; customRange=[s,e]; period='custom'; syncPeriodUI(); renderAll(); }
   de.addEventListener('change',onDate); at.addEventListener('change',onDate); syncPeriodUI(); }
 
-var TABS=['geral','meta','google'];
+var TABS=['geral','meta','google','historico'];
 function activateTab(id){ Array.prototype.forEach.call(document.querySelectorAll('.tab'),function(x){x.classList.toggle('active',x.getAttribute('data-tab')===id);});
   TABS.forEach(function(k){ el('tab-'+k).classList.toggle('hidden',k!==id); }); }
 function initTabs(){ Array.prototype.forEach.call(document.querySelectorAll('.tab'),function(t){ t.addEventListener('click',function(){ var id=t.getAttribute('data-tab'); activateTab(id); if(history.replaceState)history.replaceState(null,'','#'+id); }); });
@@ -510,5 +566,5 @@ function initCoverage(){ el('updated').textContent=D.generatedAtBR||'—'; el('t
     +' · <b>'+intf((tm.sales||0)+(tg.sales||0))+'</b> vendas MPI atribuídas ao tráfego pago ('+intf(tm.sales||0)+' Meta · '+intf(tg.sales||0)+' Google).'; }
 
 if(!META.daily.length && !GOOG.daily.length){ el('coverage').innerHTML='<b>Sem dados.</b> Rode o build.ps1 para gerar o data.js.'; }
-else { initCoverage(); initPeriods(); initTabs(); renderAll(); renderGoal(); }
+else { initCoverage(); initPeriods(); initTabs(); renderAll(); renderGoal(); initHistWin(); renderHistorico(); }
 })();
