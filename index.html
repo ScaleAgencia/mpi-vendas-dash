@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@1,500;1,600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?t=20260727l">
+<link rel="stylesheet" href="styles.css?t=20260727m">
 </head>
 <body>
 <div class="wrap">
@@ -40,8 +40,10 @@
 
   <nav class="tabs" id="tabs">
     <button class="tab active" data-tab="geral">Visão Geral</button>
+    <button class="tab" data-tab="consolidado">📊 Consolidado</button>
     <button class="tab" data-tab="meta"><span class="tdot" style="background:#5b9dff"></span>Meta Ads</button>
     <button class="tab" data-tab="google"><span class="tdot" style="background:#f4a93b"></span>Google / YouTube</button>
+    <button class="tab" data-tab="micro">🔬 Otimização Micro</button>
     <button class="tab" data-tab="historico">📅 Histórico</button>
   </nav>
 
@@ -106,7 +108,7 @@
       <div class="ins-grid" id="m-insights"></div>
     </div>
     <div class="card">
-      <div class="card-h">Visão diária <span class="hint">CAC e ROAS coloridos vs. mediana do período</span></div>
+      <div class="card-h">Visão diária <span class="hint">CAC e ROAS coloridos · Tx Chk (checkout ÷ LPV) e Tx Compra (venda ÷ checkout) do funil VSL</span></div>
       <div class="table-scroll"><table class="tbl" id="m-daily"></table></div>
     </div>
     <div class="card">
@@ -155,6 +157,27 @@
     </div>
   </section>
 
+  <!-- ============ CONSOLIDADO ============ -->
+  <section class="panel-tab hidden" id="tab-consolidado">
+    <div class="cons-head"><div class="cons-title">Funil consolidado <span>MPI · Meta + Google · no período selecionado</span></div></div>
+    <div class="cons-funnel" id="consFunnel"></div>
+    <div class="cons-results" id="consResults"></div>
+  </section>
+
+  <!-- ============ OTIMIZAÇÃO MICRO ============ -->
+  <section class="panel-tab hidden" id="tab-micro">
+    <div class="card micro-detail">
+      <div class="micro-title" id="microTitle"></div>
+      <div class="micro-trend" id="microTrend"></div>
+      <div id="microChart"></div>
+    </div>
+    <div class="card">
+      <div class="card-h">Filtrar a visão micro — clique numa campanha › conjunto › anúncio
+        <span class="hint">o painel acima mostra a tendência (alta/queda) do item selecionado · clique no ▶ p/ abrir os filhos · ▲ verde = subindo, ▼ vermelho = caindo</span></div>
+      <div class="table-scroll"><table class="tbl" id="microTree"></table></div>
+    </div>
+  </section>
+
   <!-- ============ HISTÓRICO ============ -->
   <section class="panel-tab hidden" id="tab-historico">
     <div class="hist-head">
@@ -175,7 +198,7 @@
   </footer>
 </div>
 
-<script src="data.js?t=20260727l"></script>
-<script src="app.js?t=20260727l"></script>
+<script src="data.js?t=20260727m"></script>
+<script src="app.js?t=20260727m"></script>
 </body>
 </html>
