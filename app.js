@@ -551,6 +551,77 @@ function renderHistorico(){ var all=histDaily(); if(!el('histVerdict'))return;
 function initHistWin(){ if(!el('histWin'))return; el('histWin').innerHTML=[4,8,12].map(function(w){return '<button class="hwbtn" data-w="'+w+'">'+w+' sem</button>';}).join('');
   Array.prototype.forEach.call(el('histWin').querySelectorAll('.hwbtn'),function(b){ b.addEventListener('click',function(){ histWeeks=+b.getAttribute('data-w'); renderHistorico(); }); }); }
 
+/* =================== CICLO DO MÊS (ROAS por dia do mês) =================== */
+function roasHeatBg(roas){ if(roas==null||!isFinite(roas))return '';
+  if(roas>=0.8)return 'background:rgba(35,194,134,'+(0.12+0.55*clamp((roas-0.8)/0.5)).toFixed(3)+')';
+  return 'background:rgba(242,99,126,'+(0.12+0.55*clamp((0.8-roas)/0.45)).toFixed(3)+')'; }
+function domStats(){
+  var days=histDaily(), byDom={}, byMonthDom={}, months=[];
+  for(var d=1;d<=31;d++)byDom[d]={dom:d,n:0,spend:0,rev:0,sales:0};
+  days.forEach(function(dd){ var dom=+dd.date.slice(8,10), mo=dd.date.slice(0,7); var o=byDom[dom]; o.n++;o.spend+=dd.spend;o.rev+=dd.rev;o.sales+=dd.sales;
+    if(months.indexOf(mo)<0)months.push(mo); var k=mo+''+dom, mm=byMonthDom[k]||(byMonthDom[k]={spend:0,rev:0,sales:0}); mm.spend+=dd.spend;mm.rev+=dd.rev;mm.sales+=dd.sales; });
+  for(var d2=1;d2<=31;d2++){ var o=byDom[d2]; o.roas=dv(o.rev,o.spend); o.vndDia=o.n?o.sales/o.n:0; o.invDia=o.n?o.spend/o.n:0; }
+  months.sort();
+  return {byDom:byDom, months:months, byMonthDom:byMonthDom};
+}
+function faseAgg(byDom,a,b){ var sp=0,rv=0,sl=0,nd=0; for(var d=a;d<=b;d++){ var o=byDom[d]; sp+=o.spend;rv+=o.rev;sl+=o.sales;nd+=o.n; } return {sp:sp,rv:rv,sl:sl,nd:nd,roas:dv(rv,sp),vndDia:nd?sl/nd:0,cac:sl?dv(sp,sl):0,invDia:nd?sp/nd:0}; }
+function declineStart(byDom){ var base=faseAgg(byDom,1,20).roas;
+  for(var d=21;d<=31;d++){ var o=byDom[d]; if(o.n>=2&&o.roas>0&&o.roas<base*0.9)return {day:d,base:base}; }
+  for(var d2=16;d2<=31;d2++){ var o2=byDom[d2]; if(o2.n>=2&&o2.roas>0&&o2.roas<base*0.9)return {day:d2,base:base}; }
+  return {day:null,base:base}; }
+function cicloChart(series,dec,base,maxDomN){
+  if(series.length<3)return '<div class="empty">Histórico insuficiente.</div>';
+  var W=840,H=270,pl=44,pr=46,pt=14,pb=26,pw=W-pl-pr,ph=H-pt-pb,bs=pt+ph;
+  var maxV=Math.max.apply(null,series.map(function(o){return o.vndDia;}).concat([1]));
+  var maxRo=Math.max.apply(null,series.map(function(o){return o.roas;}).concat([base,1]));
+  var n=series.length, gw=pw/n, bw=Math.max(3,Math.min(15,gw*0.5)), xOf=function(i){return pl+gw*i+gw/2;};
+  var s='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet">';
+  [0,.5,1].forEach(function(f){ var y=pt+ph*(1-f); s+='<line x1="'+pl+'" y1="'+y+'" x2="'+(W-pr)+'" y2="'+y+'" stroke="#16281f" stroke-dasharray="2 3"/>';
+    s+='<text x="'+(pl-5)+'" y="'+(y+3)+'" text-anchor="end" fill="#587567" font-size="9">'+Math.round(maxV*f)+'</text>';
+    s+='<text x="'+(W-pr+5)+'" y="'+(y+3)+'" text-anchor="start" fill="#c98a2a" font-size="9">'+nf1.format(maxRo*f)+'</text>'; });
+  var yb=bs-ph*clamp(base/maxRo); s+='<line x1="'+pl+'" y1="'+yb.toFixed(1)+'" x2="'+(W-pr)+'" y2="'+yb.toFixed(1)+'" stroke="rgba(35,194,134,.45)" stroke-dasharray="4 3"/><text x="'+(pl+3)+'" y="'+(yb-4).toFixed(1)+'" fill="#5fe3b0" font-size="9">média dias 1-20: '+roasf(base)+'</text>';
+  series.forEach(function(o,i){ var h=ph*dv(o.vndDia,maxV), xc=xOf(i); if(o.vndDia>0)s+='<rect x="'+(xc-bw/2).toFixed(1)+'" y="'+(bs-h).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+h.toFixed(1)+'" rx="1.5" fill="rgba(35,194,134,.28)"/>'; });
+  var pts=series.map(function(o,i){ return [xOf(i), bs-ph*clamp(o.roas/maxRo)]; });
+  if(pts.length>1)s+='<path d="M'+pts.map(function(p){return p[0].toFixed(1)+' '+p[1].toFixed(1);}).join(' L')+'" fill="none" stroke="'+COL.gold+'" stroke-width="2.4"/>';
+  pts.forEach(function(p,i){ s+='<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="2.6" fill="'+COL.gold+'"/>'; });
+  if(dec){ var di=-1; series.forEach(function(o,i){ if(o.dom===dec)di=i; }); if(di>=0){ var x=xOf(di); s+='<line x1="'+x.toFixed(1)+'" y1="'+pt+'" x2="'+x.toFixed(1)+'" y2="'+bs+'" stroke="rgba(242,99,126,.7)" stroke-dasharray="3 3" stroke-width="1.5"/><text x="'+(x+4).toFixed(1)+'" y="'+(pt+11)+'" fill="#f2637e" font-size="10" font-weight="700">dia '+dec+' ↓</text>'; } }
+  series.forEach(function(o,i){ if(o.dom%5===0||o.dom===1||i===series.length-1){ s+='<text x="'+xOf(i).toFixed(1)+'" y="'+(H-7)+'" text-anchor="middle" fill="#587567" font-size="9">'+o.dom+'</text>'; } });
+  s+=hitRects(series,pl,gw,pt,ph)+'</svg>';
+  return '<div class="chart">'+s+'</div><div class="chart-legend"><span><span class="dot" style="background:rgba(35,194,134,.4)"></span>Vendas/dia</span><span><span class="ln" style="background:'+COL.gold+'"></span>ROAS médio</span><span style="color:#f2637e">tracejado vermelho = começa a cair</span></div>';
+}
+function cicloHeat(months,bmd){
+  var head='<tr><th>Mês</th>'; for(var d=1;d<=31;d++)head+='<th>'+d+'</th>'; head+='</tr>';
+  var rows=months.map(function(mo){ var r='<tr><td class="hm-day">'+monthShort(mo)+'</td>';
+    for(var d=1;d<=31;d++){ var mm=bmd[mo+''+d]; if(!mm||mm.spend<=0){ r+='<td class="cc-cell na">·</td>'; continue; } var roas=dv(mm.rev,mm.spend); r+='<td class="cc-cell" style="'+roasHeatBg(roas)+'">'+roasf(roas)+'</td>'; }
+    return r+'</tr>'; }).join('');
+  return '<table class="cc-heat">'+head+rows+'</table>';
+}
+function renderCiclo(){
+  if(!el('cicloChart'))return;
+  var st=domStats(), byDom=st.byDom;
+  if(st.months.length<1){ el('cicloVerdict').innerHTML='<div class="empty">Sem dados.</div>'; return; }
+  var dec=declineStart(byDom), base=dec.base;
+  var series=[]; for(var d=1;d<=31;d++){ if(byDom[d].n>0)series.push(byDom[d]); }
+  // pior dia do fim (>=21, amostra >=3) · início forte · queda de volume
+  var worstDay=dec.day||29, worstRoas=byDom[worstDay]?byDom[worstDay].roas:0;
+  for(var d=21;d<=31;d++){ var o=byDom[d]; if(o.n>=3&&o.roas>0&&o.roas<worstRoas){worstRoas=o.roas;worstDay=d;} }
+  var ini=faseAgg(byDom,1,5), fim=faseAgg(byDom,26,31), volPre=faseAgg(byDom,1,25);
+  var roasDrop=base>0?(base-fim.roas)/base*100:0, volDrop=volPre.vndDia>0?(volPre.vndDia-fim.vndDia)/volPre.vndDia*100:0;
+  el('cicloVerdict').innerHTML='<div class="ciclo-grid">'
+    +'<div class="cg-box alert"><div class="cg-lab">📉 ROAS mais fraco no fim</div><div class="cg-day">dia '+worstDay+'</div><div class="cg-sub">ROAS <b>'+roasf(worstRoas)+'</b> (o pior do mês) · o fim (26–31) fica só <b>'+nf0.format(Math.round(roasDrop))+'% abaixo</b> da média — a queda de ROAS é leve</div></div>'
+    +'<div class="cg-box ok"><div class="cg-lab">🔥 Início do mês é o mais forte</div><div class="cg-v">'+roasf(ini.roas)+'</div><div class="cg-sub">ROAS médio dos dias 1–5 (vs '+roasf(base)+' de 1-20) · vale concentrar budget no começo</div></div>'
+    +'<div class="cg-box bad"><div class="cg-lab">📊 O que cai mesmo é o VOLUME</div><div class="cg-v neg">−'+nf0.format(Math.round(volDrop))+'%</div><div class="cg-sub"><b>'+nf1.format(fim.vndDia)+'</b> vendas/dia no fim (26–31) vs <b>'+nf1.format(volPre.vndDia)+'</b> no resto · é isso que dá a sensação de "cair no fim"</div></div>'
+    +'</div>';
+  el('cicloChart').innerHTML=cicloChart(series,dec.day,base);
+  bindHits('cicloChart',series,function(o){ return '<div class="tt-d">Dia '+o.dom+' do mês</div><div class="tt-r"><span style="color:'+COL.gold2+'">ROAS médio</span><b>'+roasf(o.roas)+'</b></div><div class="tt-r"><span style="color:'+COL.grn2+'">Vendas/dia</span><b>'+nf1.format(o.vndDia)+'</b></div><div class="tt-sub">'+o.n+' meses · invest/dia '+money0(o.invDia)+'</div>'; });
+  el('cicloHeat').innerHTML=cicloHeat(st.months,st.byMonthDom);
+  var faseHead='<thead><tr><th>Fase do mês</th><th>Vendas/dia</th><th>Investimento/dia</th><th>ROAS</th><th>CAC</th></tr></thead>';
+  var fases=[['Início (dias 1–10)',1,10],['Meio (dias 11–20)',11,20],['Fim (dias 21–31)',21,31]];
+  var fb=fases.map(function(f){ var a=faseAgg(byDom,f[1],f[2]); var isIni=f[1]===1;
+    return '<tr'+(isIni?' class="hist-champ-row"':'')+'><td>'+f[0]+(isIni?' 🔥':'')+'</td><td class="num">'+nf1.format(a.vndDia)+'</td><td class="num">'+money0(a.invDia)+'</td><td class="num"><span class="roas-pill '+roasClass(a.roas)+'">'+roasf(a.roas)+'</span></td><td class="num">'+(a.cac?money0(a.cac):'—')+'</td></tr>'; }).join('');
+  el('cicloTable').innerHTML=faseHead+'<tbody>'+fb+'</tbody>';
+}
+
 /* =================== CONSOLIDADO (funil simples) =================== */
 function consCard(label,val,sub,cls){ return '<div class="cons-card'+(cls?' '+cls:'')+'"><div class="cc-l">'+label+'</div><div class="cc-v">'+val+'</div>'+(sub?'<div class="cc-s">'+sub+'</div>':'')+'</div>'; }
 function renderConsolidado(rng){
@@ -689,7 +760,7 @@ function initPeriods(){ el('periods').innerHTML=periodsHTML();
   function onDate(){ var s=de.value,e=at.value; if(!s||!e)return; if(s>e){var t=s;s=e;e=t;} if(s<minDate)s=minDate; if(e>maxDate)e=maxDate; customRange=[s,e]; period='custom'; syncPeriodUI(); renderAll(); }
   de.addEventListener('change',onDate); at.addEventListener('change',onDate); syncPeriodUI(); }
 
-var TABS=['geral','consolidado','meta','google','micro','historico'];
+var TABS=['geral','consolidado','meta','google','micro','ciclo','historico'];
 function activateTab(id){ Array.prototype.forEach.call(document.querySelectorAll('.tab'),function(x){x.classList.toggle('active',x.getAttribute('data-tab')===id);});
   TABS.forEach(function(k){ el('tab-'+k).classList.toggle('hidden',k!==id); }); }
 function initTabs(){ Array.prototype.forEach.call(document.querySelectorAll('.tab'),function(t){ t.addEventListener('click',function(){ var id=t.getAttribute('data-tab'); activateTab(id); if(history.replaceState)history.replaceState(null,'','#'+id); }); });
@@ -701,5 +772,5 @@ function initCoverage(){ el('updated').textContent=D.generatedAtBR||'—'; el('t
     +' · <b>'+intf((tm.sales||0)+(tg.sales||0))+'</b> vendas MPI atribuídas ao tráfego pago ('+intf(tm.sales||0)+' Meta · '+intf(tg.sales||0)+' Google).'; }
 
 if(!META.daily.length && !GOOG.daily.length){ el('coverage').innerHTML='<b>Sem dados.</b> Rode o build.ps1 para gerar o data.js.'; }
-else { initCoverage(); initPeriods(); initTabs(); renderAll(); renderGoal(); initHistWin(); renderHistorico(); }
+else { initCoverage(); initPeriods(); initTabs(); renderAll(); renderGoal(); initHistWin(); renderHistorico(); renderCiclo(); }
 })();

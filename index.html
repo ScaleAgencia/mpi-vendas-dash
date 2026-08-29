@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@1,500;1,600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?t=20260727m">
+<link rel="stylesheet" href="styles.css?t=20260727n">
 </head>
 <body>
 <div class="wrap">
@@ -44,6 +44,7 @@
     <button class="tab" data-tab="meta"><span class="tdot" style="background:#5b9dff"></span>Meta Ads</button>
     <button class="tab" data-tab="google"><span class="tdot" style="background:#f4a93b"></span>Google / YouTube</button>
     <button class="tab" data-tab="micro">🔬 Otimização Micro</button>
+    <button class="tab" data-tab="ciclo">📉 Ciclo do Mês</button>
     <button class="tab" data-tab="historico">📅 Histórico</button>
   </nav>
 
@@ -178,6 +179,17 @@
     </div>
   </section>
 
+  <!-- ============ CICLO DO MÊS ============ -->
+  <section class="panel-tab hidden" id="tab-ciclo">
+    <div class="hist-head">
+      <div class="hist-title">📉 Ciclo do mês — quando o ROAS cai <span class="hint" style="font-weight:500;text-transform:none;letter-spacing:0">soma de todos os meses por dia do mês (1→31) · ROAS inclui order bump · exclui o dia de hoje (parcial)</span></div>
+    </div>
+    <div class="card"><div id="cicloVerdict"></div></div>
+    <div class="card"><div class="card-h">ROAS e vendas por dia do mês <span class="hint">linha dourada = ROAS médio · barras = vendas/dia · tracejado verde = média dos dias 1-20 · tracejado vermelho = onde começa a cair</span></div><div id="cicloChart"></div></div>
+    <div class="card"><div class="card-h">Consistência mês a mês <span class="hint">ROAS por dia do mês em cada mês · verde = alto, vermelho = baixo · veja o fim do mês esfriar (colunas da direita) todo mês</span></div><div class="table-scroll" id="cicloHeat"></div></div>
+    <div class="card"><div class="card-h">Fases do mês <span class="hint">início · meio · fim</span></div><div class="table-scroll"><table class="tbl" id="cicloTable"></table></div></div>
+  </section>
+
   <!-- ============ HISTÓRICO ============ -->
   <section class="panel-tab hidden" id="tab-historico">
     <div class="hist-head">
@@ -198,7 +210,7 @@
   </footer>
 </div>
 
-<script src="data.js?t=20260727m"></script>
-<script src="app.js?t=20260727m"></script>
+<script src="data.js?t=20260727n"></script>
+<script src="app.js?t=20260727n"></script>
 </body>
 </html>
