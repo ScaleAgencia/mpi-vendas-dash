@@ -18,7 +18,7 @@ New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
 
 # ---- Fontes (somente leitura) --------------------------------------
 $VENDAS_ID  = '1BJ-T_Aj5oeMge667xWtX_SfGCSiibcFo7l0yLWTt_BQ'; $VENDAS_GID = '0'   # aba "vendas"
-$META_ID    = '1sz1FSorsozC1pkSKJi8JGQai7-jj6-eOSk5oa65ng-k'; $META_GID   = '0'   # queries Meta
+$META_ID    = '15Gs6F0MDFA0oreosbcIZnibu69JGvIfCxNuuSlTxvNg'; $META_GID   = '1267496296'   # queries Meta (aba "todas as contas nomes valor gasto" - so campanhas MPI, atualizada a partir de 03/09/2026)
 $GOOGLE_ID  = '1uXhxl7xafcdE8jLbA611a_KNYzEjipTEtpiP0HePD58'; $GOOGLE_GID = '0'   # queries Google/YouTube
 $TAX = 1.1385      # imposto Meta (+13,85%) aplicado em TODO gasto de Meta
 # produto MPI = venda direta principal (rotulo mudou ao longo do tempo)
