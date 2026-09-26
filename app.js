@@ -756,7 +756,7 @@ function v2Metrics(n){ return {
   spend:n.spend,impr:n.impr,clicks:n.clicks,lpv:n.lpv,checkout:n.checkout,sales:n.sales,rev:n.rev,
   cpm:n.impr>0?n.spend/n.impr*1000:null, ctr:n.impr>0?n.clicks/n.impr*100:null, cpc:n.clicks>0?n.spend/n.clicks:null,
   txchk:n.lpv>0?n.checkout/n.lpv*100:null, txcpr:n.checkout>0?n.sales/n.checkout*100:null,
-  convPag:n.clicks>0?n.sales/n.clicks*100:null, cac:n.sales>0?n.spend/n.sales:null, ticket:n.sales>0?n.rev/n.sales:null,
+  convPag:n.clicks>0?n.sales/n.clicks*100:null, cac:(n.sales>0&&n.spend>0)?n.spend/n.sales:null, ticket:n.sales>0?n.rev/n.sales:null,
   roas:n.spend>0?n.rev/n.spend:null }; }
 function v2groupBy(rows,level){ var g={};
   rows.forEach(function(r){
@@ -871,6 +871,10 @@ function mountV2(){
   if(!el('v2Wrap')) return;
   var rng=v2RangeFor(v2Period);
   var base=v2Rows().filter(function(r){ return isDate(r.date)&&inRange(r.date,rng)&&v2ChMatch(r); });
+  // limpa seleção que não existe mais no recorte atual (ex.: trocou Canal/Período e o item selecionado sumiu)
+  if(v2Sel.camp!=null && !base.some(function(r){return r.campaign===v2Sel.camp;})){ v2Sel={camp:null,adset:null,ad:null}; }
+  else { if(v2Sel.adset!=null && !base.some(function(r){return r.campaign===v2Sel.camp&&r.adset===v2Sel.adset;})){ v2Sel.adset=null; v2Sel.ad=null; }
+         if(v2Sel.ad!=null && !base.some(function(r){return r.campaign===v2Sel.camp&&r.adset===v2Sel.adset&&r.ad===v2Sel.ad;})){ v2Sel.ad=null; } }
   var PW=[{k:'7d',l:'7 dias'},{k:'14d',l:'14 dias'},{k:'30d',l:'30 dias'},{k:'tudo',l:'Tudo'}];
   var CH=[{k:'geral',l:'Geral'},{k:'meta',l:'Meta'},{k:'google',l:'Google'}];
   var clr=(v2Sel.camp!=null||v2Sel.adset!=null||v2Sel.ad!=null)?'<button class="v2clr" id="v2Clear">✕ limpar filtro</button>':'';
