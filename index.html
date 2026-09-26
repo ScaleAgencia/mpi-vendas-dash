@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@1,500;1,600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?t=20260727n">
+<link rel="stylesheet" href="styles.css?t=20260926v2">
 </head>
 <body>
 <div class="wrap">
@@ -43,6 +43,7 @@
     <button class="tab" data-tab="consolidado">📊 Consolidado</button>
     <button class="tab" data-tab="meta"><span class="tdot" style="background:#5b9dff"></span>Meta Ads</button>
     <button class="tab" data-tab="google"><span class="tdot" style="background:#f4a93b"></span>Google / YouTube</button>
+    <button class="tab" data-tab="v2">⚡ Otimização V2</button>
     <button class="tab" data-tab="micro">🔬 Otimização Micro</button>
     <button class="tab" data-tab="ciclo">📉 Ciclo do Mês</button>
     <button class="tab" data-tab="historico">📅 Histórico</button>
@@ -165,6 +166,28 @@
     <div class="cons-results" id="consResults"></div>
   </section>
 
+  <!-- ============ OTIMIZAÇÃO V2 (100% filtrável) ============ -->
+  <section class="panel-tab hidden" id="tab-v2">
+    <div id="v2Wrap">
+      <div class="v2bar">
+        <div class="v2filters" id="v2Filters"></div>
+        <div class="v2crumbwrap"><span class="v2crumb-lab">Filtro ativo:</span> <span id="v2Crumb"></span></div>
+      </div>
+      <div class="funil-grid">
+        <div class="kpi-col" id="v2Kpi"></div>
+        <div class="chart-col">
+          <div class="card"><div class="card-h">Combinação diária <span class="hint">barras = investimento (azul) + faturamento (verde) · linha dourada = ROAS · reage 100% ao item filtrado · exclui hoje (parcial)</span></div><div id="v2Daily"></div></div>
+        </div>
+      </div>
+      <div id="v2TCamp"></div>
+      <div class="card"><div class="card-h">Evolução diária · por campanha <span class="hint">métrica no seletor <b>Linhas</b> acima (ROAS · Vendas · Faturamento) · top 8 por gasto · clique na legenda p/ filtrar · hover mostra todas as métricas do dia · exclui hoje (parcial)</span></div><div id="v2LinesCamp"></div></div>
+      <div id="v2TAdset"></div>
+      <div class="card"><div class="card-h">Evolução diária · por conjunto/grupo <span class="hint">métrica no seletor <b>Linhas</b> acima · top 8 por gasto · clique na legenda p/ filtrar · hover mostra todas as métricas do dia</span></div><div id="v2LinesAdset"></div></div>
+      <div id="v2TAd"></div>
+      <div class="card"><div class="card-h">Evolução diária · por anúncio <span class="hint">métrica no seletor <b>Linhas</b> acima · top 8 por gasto · clique na legenda p/ filtrar · hover mostra todas as métricas do dia</span></div><div id="v2LinesAd"></div></div>
+    </div>
+  </section>
+
   <!-- ============ OTIMIZAÇÃO MICRO ============ -->
   <section class="panel-tab hidden" id="tab-micro">
     <div class="card micro-detail">
@@ -210,7 +233,7 @@
   </footer>
 </div>
 
-<script src="data.js?t=20260727n"></script>
-<script src="app.js?t=20260727n"></script>
+<script src="data.js?t=20260926v2"></script>
+<script src="app.js?t=20260926v2"></script>
 </body>
 </html>
