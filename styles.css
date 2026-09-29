@@ -158,7 +158,7 @@ b{font-weight:700}
 .tree .caret.open{transform:rotate(90deg)}
 .tree .parent{cursor:pointer}
 .tree .parent:hover{background:rgba(35,194,134,.07)}
-.tree .name{overflow:hidden;text-overflow:ellipsis;max-width:420px;display:inline-block;vertical-align:bottom}
+.tree .name{max-width:none;display:inline-block;vertical-align:bottom}
 .tree-legend,.tbl-legend{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;font-size:11.5px;color:var(--muted)}
 .tree-legend .dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:middle}
 
@@ -316,7 +316,7 @@ b{font-weight:700}
 #microTree tr:hover{background:rgba(255,255,255,.03)}
 #microTree .caret{display:inline-block;width:14px;color:var(--grn2);font-size:9px;transition:transform .15s}
 #microTree .caret.open{transform:rotate(90deg)}
-#microTree .name{max-width:420px;overflow:hidden;text-overflow:ellipsis;display:inline-block;vertical-align:bottom}
+#microTree .name{max-width:none;display:inline-block;vertical-align:bottom}
 
 /* ---------- histórico (dia da semana) ---------- */
 .hist-head{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:16px}
@@ -382,7 +382,7 @@ a.v2crumb:hover{color:var(--ink2);text-decoration:underline}
 .chart-tip .tt-mini{color:var(--muted2);font-size:10px;margin:0 0 4px;text-align:right}
 .v2tbl tbody tr{cursor:pointer}
 .v2tbl tbody tr.sel{background:rgba(232,182,74,.14)!important;box-shadow:inset 3px 0 0 var(--gold)}
-.v2tbl .v2name{max-width:340px;overflow:hidden;text-overflow:ellipsis;display:inline-block;vertical-align:bottom}
+.v2tbl .v2name{max-width:none;display:inline-block;vertical-align:bottom}
 .chart svg .v2hit{cursor:crosshair}
 .chart svg .v2hit:hover{fill:rgba(232,182,74,.06)}
 

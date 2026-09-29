@@ -796,7 +796,13 @@ function v2SeriesByDate(rows){ var bd={}; rows.forEach(function(r){ if(r.date===
 function v2Lines(groups,elId,level,onPick){
   if(!el(elId)) return;
   var isRoas=v2LineMetric==='roas';
-  var top=groups.slice(0,8);
+  // se há um item selecionado NESTE nível, isola só a linha dele (pedido: ver só a campanha/conjunto/anúncio clicado)
+  var sub=groups;
+  if(level===0 && v2Sel.camp!=null) sub=groups.filter(function(g){return g.camp===v2Sel.camp;});
+  else if(level===1 && v2Sel.adset!=null) sub=groups.filter(function(g){return g.camp===v2Sel.camp&&g.adset===v2Sel.adset;});
+  else if(level===2 && v2Sel.ad!=null) sub=groups.filter(function(g){return g.camp===v2Sel.camp&&g.adset===v2Sel.adset&&g.ad===v2Sel.ad;});
+  var top=sub.slice(0,8);
+  var solo=top.length===1;
   top.forEach(function(g){ g.series=v2SeriesByDate(g.rows); var mp={}; g.series.forEach(function(d){mp[d.date]=d;}); g.map=mp; });
   var dset={}; top.forEach(function(g){ g.series.forEach(function(d){ if(d.spend>0) dset[d.date]=1; }); });
   var dates=Object.keys(dset).sort();
@@ -816,8 +822,8 @@ function v2Lines(groups,elId,level,onPick){
   var bandW = n>1? pw/(n-1) : pw;
   dates.forEach(function(dt,i){ var x=xf(i)-bandW/2; if(x<pl)x=pl; s+='<rect class="v2hit" data-i="'+i+'" x="'+x.toFixed(1)+'" y="'+pt+'" width="'+bandW.toFixed(1)+'" height="'+ph+'" fill="transparent" pointer-events="all"/>'; });
   s+='</svg>';
-  var legend=top.map(function(g,gi){ var col=V2PAL[gi%V2PAL.length]; var nm=g.name.length>36?g.name.slice(0,34)+'…':g.name;
-    return '<span class="v2leg'+(v2SelOf(g,level)?' on':'')+'" data-key="'+encodeURIComponent(g.key)+'"><span class="dot" style="background:'+col+'"></span>'+esc(nm)+'</span>'; }).join('');
+  var legend=top.map(function(g,gi){ var col=V2PAL[gi%V2PAL.length]; var nm=(!solo&&g.name.length>36)?g.name.slice(0,34)+'…':g.name;
+    return '<span class="v2leg'+(v2SelOf(g,level)?' on':'')+'" data-key="'+encodeURIComponent(g.key)+'" title="'+esc(g.name)+'"><span class="dot" style="background:'+col+'"></span>'+esc(nm)+'</span>'; }).join('');
   var mlab='<span class="v2metnote">linha = <b>'+v2MetricLabel()+'/dia</b></span>';
   el(elId).innerHTML='<div class="chart">'+s+'</div><div class="chart-legend wrap v2legwrap">'+mlab+legend+'</div>';
   var byKey={}; top.forEach(function(g){ byKey[g.key]=g; });
