@@ -49,15 +49,19 @@ function daysBetween(a,b){ var pa=a.split('-'),pb=b.split('-'); return Math.roun
 function inRange(dt,r){ return dt>=r[0] && dt<=r[1]; }
 var PRESETS=[{k:'hoje',label:'Hoje'},{k:'ontem',label:'Ontem'},{k:'mes',label:'Este mês'},{k:'7d',label:'7 dias'},{k:'30d',label:'30 dias'},{k:'90d',label:'90 dias'},{k:'tudo',label:'Tudo'}];
 var period='tudo', customRange=null;
+function pad2(n){ return (n<10?'0':'')+n; }
+function todayISO(){ var d=new Date(); return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+function recentEnd(){ var t=todayISO(); return (maxDate&&maxDate>t)?maxDate:t; }   // fim das janelas "ultimos N dias" = HOJE (inclui o dia atual), robusto a atraso do build
 function rangeFor(k){
   if(k==='custom'&&customRange) return customRange;
   if(k==='tudo') return [minDate,maxDate];
-  if(k==='hoje') return [maxDate,maxDate];
-  if(k==='ontem'){ var y=addDays(maxDate,-1); return [y,y]; }
-  if(k==='mes')  return [maxDate.slice(0,7)+'-01', maxDate];   // do dia 1 do mes atual ate a ultima data
-  if(k==='7d')  return [addDays(maxDate,-6),maxDate];
-  if(k==='30d') return [addDays(maxDate,-29),maxDate];
-  if(k==='90d') return [addDays(maxDate,-89),maxDate];
+  var end=recentEnd();
+  if(k==='hoje') return [end,end];
+  if(k==='ontem'){ var y=addDays(end,-1); return [y,y]; }
+  if(k==='mes')  return [end.slice(0,7)+'-01', end];   // do dia 1 do mes atual ate hoje
+  if(k==='7d')  return [addDays(end,-6),end];
+  if(k==='30d') return [addDays(end,-29),end];
+  if(k==='90d') return [addDays(end,-89),end];
   return [minDate,maxDate];
 }
 function prevRange(rng){ var len=daysBetween(rng[0],rng[1])+1; var pe=addDays(rng[0],-1); return [addDays(pe,-(len-1)),pe]; }
@@ -791,7 +795,7 @@ function v2Kpis(m){
 }
 function v2DaySeries(rows){ var bd={}; rows.forEach(function(r){ var o=bd[r.date]||(bd[r.date]={spend:0,rev:0,sales:0}); o.spend+=r.spend;o.rev+=r.rev;o.sales+=r.sales; });
   return Object.keys(bd).sort().map(function(d){ var o=bd[d]; return {date:d,label:fmtBR(d),spend:o.spend,rev:o.rev,sales:o.sales}; }); }
-function v2SeriesByDate(rows){ var bd={}; rows.forEach(function(r){ if(r.date===maxDate)return; var o=bd[r.date]||(bd[r.date]={date:r.date,spend:0,rev:0,sales:0}); o.spend+=r.spend;o.rev+=r.rev;o.sales+=r.sales; });
+function v2SeriesByDate(rows){ var bd={}; rows.forEach(function(r){ var o=bd[r.date]||(bd[r.date]={date:r.date,spend:0,rev:0,sales:0}); o.spend+=r.spend;o.rev+=r.rev;o.sales+=r.sales; });
   return Object.keys(bd).sort().map(function(d){return bd[d];}); }
 function v2Lines(groups,elId,level,onPick){
   if(!el(elId)) return;
@@ -875,20 +879,19 @@ function v2CrumbHTML(){
 }
 function mountV2(){
   if(!el('v2Wrap')) return;
-  var rng=v2RangeFor(v2Period);
+  var rng=rangeFor(period);   // usa o filtro de período UNIVERSAL do topo (não tem mais período próprio da V2)
   var base=v2Rows().filter(function(r){ return isDate(r.date)&&inRange(r.date,rng)&&v2ChMatch(r); });
   // limpa seleção que não existe mais no recorte atual (ex.: trocou Canal/Período e o item selecionado sumiu)
   if(v2Sel.camp!=null && !base.some(function(r){return r.campaign===v2Sel.camp;})){ v2Sel={camp:null,adset:null,ad:null}; }
   else { if(v2Sel.adset!=null && !base.some(function(r){return r.campaign===v2Sel.camp&&r.adset===v2Sel.adset;})){ v2Sel.adset=null; v2Sel.ad=null; }
          if(v2Sel.ad!=null && !base.some(function(r){return r.campaign===v2Sel.camp&&r.adset===v2Sel.adset&&r.ad===v2Sel.ad;})){ v2Sel.ad=null; } }
-  var PW=[{k:'7d',l:'7 dias'},{k:'14d',l:'14 dias'},{k:'30d',l:'30 dias'},{k:'tudo',l:'Tudo'}];
   var CH=[{k:'geral',l:'Geral'},{k:'meta',l:'Meta'},{k:'google',l:'Google'}];
   var clr=(v2Sel.camp!=null||v2Sel.adset!=null||v2Sel.ad!=null)?'<button class="v2clr" id="v2Clear">✕ limpar filtro</button>':'';
-  el('v2Filters').innerHTML='<span class="pf-h">Período:</span>'+PW.map(function(w){return '<button data-k="'+w.k+'" class="v2btn'+(v2Period===w.k?' on':'')+'">'+w.l+'</button>';}).join('')
+  var perLbl='Personalizado'; for(var _i=0;_i<PRESETS.length;_i++){ if(PRESETS[_i].k===period){ perLbl=PRESETS[_i].label; break; } }
+  el('v2Filters').innerHTML='<span class="pf-h">Período <small style="opacity:.65;font-weight:500">(filtro do topo ↑)</small>:</span><span class="v2per">'+perLbl+'</span>'
     +'<span class="pf-h pf-ch">Canal:</span>'+CH.map(function(c){return '<button data-ch="'+c.k+'" class="v2btn'+(v2Channel===c.k?' on':'')+'">'+c.l+'</button>';}).join('')
     +'<span class="pf-h pf-ch">Linhas:</span>'+V2LM.map(function(x){return '<button data-lm="'+x.k+'" class="v2btn'+(v2LineMetric===x.k?' on':'')+'">'+x.l+'</button>';}).join('')
     +clr;
-  Array.prototype.forEach.call(el('v2Filters').querySelectorAll('.v2btn[data-k]'),function(b){ b.addEventListener('click',function(){ v2Period=b.getAttribute('data-k'); mountV2(); }); });
   Array.prototype.forEach.call(el('v2Filters').querySelectorAll('.v2btn[data-ch]'),function(b){ b.addEventListener('click',function(){ v2Channel=b.getAttribute('data-ch'); mountV2(); }); });
   Array.prototype.forEach.call(el('v2Filters').querySelectorAll('.v2btn[data-lm]'),function(b){ b.addEventListener('click',function(){ v2LineMetric=b.getAttribute('data-lm'); mountV2(); }); });
   if(el('v2Clear')) el('v2Clear').addEventListener('click',function(){ v2Sel={camp:null,adset:null,ad:null}; mountV2(); });
@@ -899,9 +902,7 @@ function mountV2(){
   var scope=base.filter(function(r){ return (v2Sel.camp==null||r.campaign===v2Sel.camp)&&(v2Sel.adset==null||r.adset===v2Sel.adset)&&(v2Sel.ad==null||r.ad===v2Sel.ad); });
   var agg=newNode('',''); scope.forEach(function(r){ accum(agg,r); });
   el('v2Kpi').innerHTML=v2Kpis(v2Metrics(agg));
-  var daysAll=v2DaySeries(scope);
-  var days = daysAll.length>1 ? daysAll.filter(function(d){return d.date!==maxDate;}) : daysAll;   // tira hoje (parcial) p/ não estourar o ROAS
-  if(!days.length) days=daysAll;
+  var days=v2DaySeries(scope);   // inclui o dia de hoje (pedido do usuário)
   if(days.length){ el('v2Daily').innerHTML=microChart(days);
     bindHits('v2Daily',days,function(b){ return '<div class="tt-d">'+b.label+'</div><div class="tt-r"><span style="color:'+COL.meta+'">Investimento</span><b>'+money0(b.spend)+'</b></div><div class="tt-r"><span style="color:'+COL.grn2+'">Faturamento</span><b>'+money0(b.rev)+'</b></div><div class="tt-sub">Vendas '+intf(b.sales)+' · ROAS '+roasf(dv(b.rev,b.spend))+'</div>'; }); }
   else el('v2Daily').innerHTML='<div class="empty">Sem dados no período.</div>';

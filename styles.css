@@ -379,6 +379,7 @@ a.v2crumb:hover{color:var(--ink2);text-decoration:underline}
 .v2leg.on{background:rgba(232,182,74,.14);border-color:rgba(232,182,74,.45);color:var(--gold2);font-weight:700}
 .v2leg .dot{width:9px;height:9px;border-radius:3px}
 .v2metnote{color:var(--muted2);font-size:11px;margin-right:4px}.v2metnote b{color:var(--gold2)}
+.v2per{display:inline-flex;align-items:center;padding:6px 12px;border-radius:999px;background:var(--grn-dim);border:1px solid rgba(35,194,134,.3);color:var(--grn2);font-size:12.5px;font-weight:700}
 .chart-tip .tt-mini{color:var(--muted2);font-size:10px;margin:0 0 4px;text-align:right}
 .v2tbl tbody tr{cursor:pointer}
 .v2tbl tbody tr.sel{background:rgba(232,182,74,.14)!important;box-shadow:inset 3px 0 0 var(--gold)}
