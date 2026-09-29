@@ -201,14 +201,12 @@ function renderChartRoas(cfg,days){
 function heatBg(rgb,frac){ return 'background:rgba('+rgb+','+(0.10+0.42*clamp(frac)).toFixed(3)+')'; }
 function renderDaily(cfg,rng){
   var chk=cfg.hasCheckout;
-  var ob=obAggFor(rng, cfg.pfx==='m'?'m':'g');   // OB por dia (exato) desta origem
   var rows=daysInRange(cfg.S,rng).slice().sort(function(a,b){return b.date.localeCompare(a.date);});
   var maxS=Math.max.apply(null,rows.map(function(r){return r.spend||0;}).concat([1]));
   var medCac=median(rows.map(function(r){return r.sales>0?dv(r.spend,r.sales):null;}));
   var chkH=chk?'<th>Tx Chk</th><th>Tx Compra</th>':'';
-  var head='<thead><tr><th>Dia</th><th>Investimento</th><th>Vendas</th><th>CAC</th>'+chkH+'<th>Faturamento</th><th>ROAS</th><th>ROAS c/OB</th><th>Lucro</th></tr></thead>';
+  var head='<thead><tr><th>Dia</th><th>Investimento</th><th>Vendas</th><th>CAC</th>'+chkH+'<th>Faturamento</th><th>ROAS</th><th>Lucro</th></tr></thead>';
   var body=rows.map(function(r){ var roas=dv(r.rev,r.spend), cac=r.sales>0?dv(r.spend,r.sales):null, lucro=r.rev-r.spend;
-    var dob=(ob.byDay[r.date]||{r:0}).r||0, roasob=dv(r.rev+dob,r.spend);
     var chkC=chk?('<td class="num">'+(r.lpv>0?pct(dv(r.checkout,r.lpv)*100):'—')+'</td><td class="num">'+(r.checkout>0?pct(dv(r.sales,r.checkout)*100):'—')+'</td>'):'';
     return '<tr><td>'+fmtBR(r.date)+'</td>'
       +'<td class="num"><span class="heatcell" style="'+heatBg('91,157,255',r.spend/maxS)+'">'+money0(r.spend)+'</span></td>'
@@ -217,12 +215,11 @@ function renderDaily(cfg,rng){
       +chkC
       +'<td class="num">'+money0(r.rev)+'</td>'
       +'<td class="num">'+(r.spend>0?'<span class="roas-pill '+roasClass(roas)+'">'+roasf(roas)+'</span>':'—')+'</td>'
-      +'<td class="num">'+(r.spend>0?'<span class="roas-pill '+roasClass(roasob)+'">'+roasf(roasob)+'</span>':'—')+'</td>'
       +'<td class="num '+(lucro>=0?'pos':'neg')+'">'+money0(lucro)+'</td></tr>'; }).join('');
-  if(!rows.length) body='<tr><td colspan="'+(chk?10:8)+'" class="empty">Sem dados no período.</td></tr>';
-  var a=aggDaily(cfg.S,rng), tr=dv(a.rev,a.spend), trob=dv(a.rev+ob.rev,a.spend), tl=a.rev-a.spend, tc=a.sales>0?dv(a.spend,a.sales):null;
+  if(!rows.length) body='<tr><td colspan="'+(chk?9:7)+'" class="empty">Sem dados no período.</td></tr>';
+  var a=aggDaily(cfg.S,rng), tr=dv(a.rev,a.spend), tl=a.rev-a.spend, tc=a.sales>0?dv(a.spend,a.sales):null;
   var chkF=chk?('<td class="num">'+(a.lpv>0?pct(dv(a.checkout,a.lpv)*100):'—')+'</td><td class="num">'+(a.checkout>0?pct(dv(a.sales,a.checkout)*100):'—')+'</td>'):'';
-  var foot='<tfoot><tr><td>Total</td><td class="num">'+money0(a.spend)+'</td><td class="num">'+intf(a.sales)+'</td><td class="num">'+(tc!=null?money0(tc):'—')+'</td>'+chkF+'<td class="num">'+money0(a.rev)+'</td><td class="num">'+(a.spend>0?roasf(tr):'—')+'</td><td class="num">'+(a.spend>0?roasf(trob):'—')+'</td><td class="num '+(tl>=0?'pos':'neg')+'">'+money0(tl)+'</td></tr></tfoot>';
+  var foot='<tfoot><tr><td>Total</td><td class="num">'+money0(a.spend)+'</td><td class="num">'+intf(a.sales)+'</td><td class="num">'+(tc!=null?money0(tc):'—')+'</td>'+chkF+'<td class="num">'+money0(a.rev)+'</td><td class="num">'+(a.spend>0?roasf(tr):'—')+'</td><td class="num '+(tl>=0?'pos':'neg')+'">'+money0(tl)+'</td></tr></tfoot>';
   el(cfg.pfx+'-daily').innerHTML=head+'<tbody>'+body+'</tbody>'+foot;
 }
 
@@ -258,7 +255,6 @@ function cellHTML(key,n,medR,medC){
     case 'cac':   var cac=(n.sales>0&&n.spend>0)?dv(n.spend,n.sales):null; return cac!=null?'<span class="cac-pill '+cacClass(cac,medC)+'">'+money0(cac)+'</span>':'—';
     case 'rev':   return money0(n.rev);
     case 'roas':  var r=dv(n.rev,n.spend); return n.spend>0?'<span class="roas-pill '+roasClass(r)+'">'+roasf(r)+'</span>':'—';
-    case 'roasob': var rob=dv(n.rev+(n.sales||0)*curOBps,n.spend); return n.spend>0?'<span class="roas-pill '+roasClass(rob)+'">'+roasf(rob)+'</span>':'—';
     case 'act':   var t=actTag(n,medR); return '<span class="act '+t.c+'">'+t.t+'</span>';
   }
   return '';
@@ -275,7 +271,7 @@ var ACT_RANK={'Acelerar':0,'Manter':1,'Revisar':2,'Pausar':3,'s/ gasto':4,'Dado 
 function treeCols(cfg){
   var c=[{k:'name'},{k:'spend',l:'Gasto'},{k:'cpm',l:'CPM'},{k:'ctr',l:'CTR'},{k:'cpc',l:'CPC'}];
   if(cfg.hasCheckout){ c.push({k:'txchk',l:'Tx Chk'},{k:'txcpr',l:'Tx Compra'}); }
-  c.push({k:'sales',l:'Vendas'},{k:'cac',l:'CAC'},{k:'rev',l:'Faturamento'},{k:'roas',l:'ROAS'},{k:'roasob',l:'ROAS c/OB'},{k:'act',l:'Ação'});
+  c.push({k:'sales',l:'Vendas'},{k:'cac',l:'CAC'},{k:'rev',l:'Faturamento'},{k:'roas',l:'ROAS'},{k:'act',l:'Ação'});
   return c;
 }
 function sortValOf(key,n,medR){
@@ -289,14 +285,12 @@ function sortValOf(key,n,medR){
   if(key==='txcpr') return n.checkout>0?-dv(n.sales,n.checkout):Infinity;
   if(key==='cac')   return (n.sales>0&&n.spend>0)?dv(n.spend,n.sales):Infinity;
   if(key==='roas')  return n.spend>0?-dv(n.rev,n.spend):Infinity;
-  if(key==='roasob')return n.spend>0?-dv(n.rev+(n.sales||0)*curOBps,n.spend):Infinity;
   if(key==='act'){ var r=ACT_RANK[actTag(n,medR).t]; return r==null?9:r; }
   return 0;
 }
-var curKey='meta', curOBps=0;
+var curKey='meta';
 function renderTree(cfg,rng){
   var sk=cfg.pfx==='m'?'meta':'google'; curKey=sk;
-  curOBps=obPerSaleFor(rng, sk==='meta'?'m':'g');   // R$ de OB por venda p/ estimar ROAS c/OB por linha
   var ss=treeSort[sk];
   var rows=cfg.S._grain.filter(function(r){return inRange(r.date,rng);});
   var camps=buildTree(rows);
@@ -323,7 +317,7 @@ function renderTree(cfg,rng){
       if(expanded[sk][sKey]){ skeys(sN.kids).forEach(function(aK){ out.push(treeRow(cols,sN.kids[aK],2,sKey+'|a:'+aK,false,medR,medC)); }); } }); } });
   if(!out.length) out.push('<tr><td colspan="'+cols.length+'" class="empty">Sem dados no período.</td></tr>');
   var tEl=el(cfg.pfx+'-tree'); tEl.innerHTML=head+'<tbody>'+out.join('')+'</tbody>';
-  el(cfg.pfx+'-treeLegend').innerHTML='<span><span class="act act-acel">Acelerar</span> ROAS ≥ 1,2× a mediana</span><span><span class="act act-rev">Revisar</span> ROAS ≤ 0,6×</span><span><span class="act act-pause">Pausar</span> gastou e não vendeu</span><span style="color:var(--muted2)">clique num cabeçalho p/ ordenar (melhor→pior); clique de novo p/ inverter</span><span style="color:var(--muted2)">ROAS c/OB = order bump alocado ∝ vendas (estimativa)</span>';
+  el(cfg.pfx+'-treeLegend').innerHTML='<span><span class="act act-acel">Acelerar</span> ROAS ≥ 1,2× a mediana</span><span><span class="act act-rev">Revisar</span> ROAS ≤ 0,6×</span><span><span class="act act-pause">Pausar</span> gastou e não vendeu</span><span style="color:var(--muted2)">clique num cabeçalho p/ ordenar (melhor→pior); clique de novo p/ inverter</span>';
   Array.prototype.forEach.call(tEl.querySelectorAll('th.sortable'),function(th){
     th.addEventListener('click',function(){ var k=th.getAttribute('data-col'); var s=treeSort[sk];
       if(s.key===k){ s.rev=!s.rev; } else { s.key=k; s.rev=false; } renderTree(cfg,rangeFor(period)); }); });
@@ -381,15 +375,6 @@ function obAggFor(rng,srcFilter){
     (by[o.k]=by[o.k]||{s:0,r:0}); by[o.k].s+=o.s; by[o.k].r+=o.r;
     (byDay[o.d]=byDay[o.d]||{s:0,r:0}); byDay[o.d].s+=o.s; byDay[o.d].r+=o.r; });
   return {sales:sales, rev:rev, by:by, byDay:byDay};
-}
-// OB não é atribuído por criativo → aloca proporcional às VENDAS (OB entra por checkout/venda).
-// Devolve R$ de order bump por venda MPI no período/origem, p/ estimar ROAS c/OB por linha da árvore.
-function obPerSaleFor(rng,srcFilter){
-  var ob=obAggFor(rng,srcFilter), sales=0;
-  if(srcFilter==='m') sales=aggDaily(META,rng).sales;
-  else if(srcFilter==='g') sales=aggDaily(GOOG,rng).sales;
-  else sales=aggDaily(META,rng).sales+aggDaily(GOOG,rng).sales;
-  return sales>0? ob.rev/sales : 0;
 }
 // renderiza o card de OB (tiles + breakdown) em qualquer aba. pfx: ''|'m-'|'g-'
 function renderOBcard(pfx,ob,mpiSales,mpiRev,spend){
@@ -667,7 +652,7 @@ function renderConsolidado(rng){
 }
 
 /* =================== OTIMIZAÇÃO MICRO (tendência alta/queda) =================== */
-var microSel={camp:null,adset:null,ad:null}, microExp={}, microOBps=0;
+var microSel={camp:null,adset:null,ad:null}, microExp={};
 function selkey(c,s,a){ return (c||'')+''+(s||'')+''+(a||''); }
 function microMatch(r){ if(microSel.camp==null)return true; if(r.campaign!==microSel.camp)return false; if(microSel.adset!=null&&r.adset!==microSel.adset)return false; if(microSel.ad!=null&&r.ad!==microSel.ad)return false; return true; }
 function microLabel(){ if(microSel.camp==null)return {t:'Todas as campanhas',s:'conta inteira · Meta + Google'};
@@ -716,25 +701,23 @@ function microChart(series){
   return '<div class="chart">'+s+'</div><div class="chart-legend"><span><span class="dot" style="background:rgba(91,157,255,.6)"></span>Investimento</span><span><span class="dot" style="background:rgba(35,194,134,.6)"></span>Faturamento</span><span><span class="ln" style="background:'+COL.gold+'"></span>ROAS</span><span style="color:var(--muted2)">tracejado = break-even</span></div>'; }
 function microTile(label,val,pct,dir){ return '<div class="micro-tile"><div class="mtl-l">'+label+'</div><div class="mtl-v">'+val+'</div><div class="mtl-t">'+trendBadge(pct,dir)+'</div></div>'; }
 function microRow(node,lvl,camp,adset,ad,hasKids,merged){
-  var key=selkey(camp,adset,ad), sel=selkey(microSel.camp,microSel.adset,microSel.ad)===key, roas=dv(node.rev,node.spend), roasob=dv(node.rev+(node.sales||0)*microOBps,node.spend);
+  var key=selkey(camp,adset,ad), sel=selkey(microSel.camp,microSel.adset,microSel.ad)===key, roas=dv(node.rev,node.spend);
   var caret=hasKids?'<span class="caret'+(microExp[key]?' open':'')+'">▶</span>':'<span class="caret" style="opacity:.2">•</span>';
   return '<tr class="mlvl'+lvl+(hasKids?' mparent':'')+(sel?' msel':'')+'" data-key="'+esc(key)+'" data-camp="'+encodeURIComponent(camp)+'" data-adset="'+encodeURIComponent(adset||'')+'" data-ad="'+encodeURIComponent(ad||'')+'" data-lvl="'+lvl+'">'
     +'<td><span class="name" title="'+esc(node.full||node.name)+'">'+caret+' '+esc(node.name)+'</span></td>'
     +'<td class="num">'+money0(node.spend)+'</td><td class="num">'+intf(node.sales)+'</td>'
     +'<td class="num">'+(node.spend>0?'<span class="roas-pill '+roasClass(roas)+'">'+roasf(roas)+'</span>':'—')+'</td>'
-    +'<td class="num">'+(node.spend>0?'<span class="roas-pill '+roasClass(roasob)+'">'+roasf(roasob)+'</span>':'—')+'</td>'
     +'<td class="num">'+rowTrendArrow(merged,camp,adset,ad)+'</td></tr>'; }
 function renderMicro(rng){
   if(!el('microTree'))return;
   var merged=META._grain.concat(GOOG._grain).filter(function(r){return inRange(r.date,rng);});
-  microOBps=obPerSaleFor(rng,null);   // OB por venda (Meta+Google) p/ estimar ROAS c/OB por linha
   var camps=buildTree(merged), order=Object.keys(camps).sort(function(a,b){return camps[b].rev-camps[a].rev;});
   var out=[];
   order.forEach(function(cK){ var c=camps[cK],cHas=Object.keys(c.kids).length>0; out.push(microRow(c,0,cK,null,null,cHas,merged));
     if(microExp[selkey(cK,null,null)]){ Object.keys(c.kids).sort(function(a,b){return c.kids[b].rev-c.kids[a].rev;}).forEach(function(sK){ var sN=c.kids[sK],sHas=Object.keys(sN.kids).length>0; out.push(microRow(sN,1,cK,sK,null,sHas,merged));
       if(microExp[selkey(cK,sK,null)]){ Object.keys(sN.kids).sort(function(a,b){return sN.kids[b].rev-sN.kids[a].rev;}).forEach(function(aK){ out.push(microRow(sN.kids[aK],2,cK,sK,aK,false,merged)); }); } }); } });
-  if(!out.length)out.push('<tr><td colspan="6" class="empty">Sem dados no período.</td></tr>');
-  el('microTree').innerHTML='<thead><tr><th>Campanha › Conjunto › Anúncio</th><th>Gasto</th><th>Vendas</th><th>ROAS</th><th>ROAS c/OB</th><th>Tendência (ROAS)</th></tr></thead><tbody>'+out.join('')+'</tbody>';
+  if(!out.length)out.push('<tr><td colspan="5" class="empty">Sem dados no período.</td></tr>');
+  el('microTree').innerHTML='<thead><tr><th>Campanha › Conjunto › Anúncio</th><th>Gasto</th><th>Vendas</th><th>ROAS</th><th>Tendência (ROAS)</th></tr></thead><tbody>'+out.join('')+'</tbody>';
   var selAll=merged.filter(microMatch), forChart=selAll.filter(function(r){return r.date!==maxDate;}); if(!forChart.length)forChart=selAll;
   var series=bucketSeries(forChart), lb=microLabel(), rp=trendPct(series,'roas');
   var badge = (series.length<2||rp==null)?'':'<span class="micro-badge '+(Math.abs(rp)<8?'flat':(rp>0?'up':'down'))+'">'+(Math.abs(rp)<8?'➡ Estável':(rp>0?'📈 Em ALTA':'📉 Em QUEDA'))+'</span>';
@@ -763,7 +746,7 @@ function renderMicro(rng){
    INTEIRA (KPIs + gráficos) só pra ele, mas as listas continuam TODAS visíveis — dá pra trocar
    clicando em outro item direto, sem precisar "voltar" (sem drill destrutivo). Cada nível tem
    TABELA + gráfico "ROAS por dia" logo abaixo (top 8 · legenda clicável · hover mostra o dia). */
-var v2Sel={camp:null,adset:null,ad:null}, v2Period='tudo', v2Channel='geral', v2LineMetric='roas', v2OBps=0;
+var v2Sel={camp:null,adset:null,ad:null}, v2Period='tudo', v2Channel='geral', v2LineMetric='roas';
 var V2PAL=['#5fe3b0','#e8b64a','#5b9dff','#f2637e','#a99bf7','#f4a93b','#34d399','#67e8f9','#fb923c','#c084fc'];
 var V2LM=[{k:'roas',l:'ROAS'},{k:'sales',l:'Vendas'},{k:'rev',l:'Faturamento'}];
 function v2LineVal(d){ if(!(d.spend>0))return null; if(v2LineMetric==='sales')return d.sales; if(v2LineMetric==='rev')return d.rev; return d.rev/d.spend; }
@@ -778,7 +761,7 @@ function v2Metrics(n){ return {
   cpm:n.impr>0?n.spend/n.impr*1000:null, ctr:n.impr>0?n.clicks/n.impr*100:null, cpc:n.clicks>0?n.spend/n.clicks:null,
   txchk:n.lpv>0?n.checkout/n.lpv*100:null, txcpr:n.checkout>0?n.sales/n.checkout*100:null,
   convPag:n.clicks>0?n.sales/n.clicks*100:null, cac:(n.sales>0&&n.spend>0)?n.spend/n.sales:null, ticket:n.sales>0?n.rev/n.sales:null,
-  roas:n.spend>0?n.rev/n.spend:null, roasob:n.spend>0?(n.rev+(n.sales||0)*v2OBps)/n.spend:null }; }
+  roas:n.spend>0?n.rev/n.spend:null }; }
 function v2groupBy(rows,level){ var g={};
   rows.forEach(function(r){
     var key = level===0? r.campaign : (level===1? r.campaign+'\u0001'+r.adset : r.campaign+'\u0001'+r.adset+'\u0001'+r.ad);
@@ -805,8 +788,7 @@ function v2Kpis(m){
   cards+=kpiCard('hl','Vendas',intf(m.sales), subRow('<b>CAC</b>',(m.cac!=null?money(m.cac):'—'),'')+subRow('Checkout→venda <small>(Meta)</small>',(m.txcpr!=null?pct(m.txcpr):'—'),''));
   var barw=clamp((m.roas||0)/1.5)*100, barcol=(m.roas>=1)?COL.grn:((m.roas>=0.8)?COL.gold:'#f2637e');
   cards+=kpiCard('gold','ROAS',(m.roas!=null?roasf(m.roas):'—'),
-    subRow('ROAS c/ order bump','<b style="color:var(--gold2)">'+(m.roasob!=null?roasf(m.roasob):'—')+'</b>','')
-    +subRow('Retorno por R$ 1','R$ '+(m.roas!=null?roasf(m.roas):'—'),'')
+    subRow('Retorno por R$ 1','R$ '+(m.roas!=null?roasf(m.roas):'—'),'')
     +'<div class="sub-row"><span class="s-l">até o break-even (1,00)</span><span class="s-v">'+(m.roas>=1?'✓ lucro':(m.roas!=null?pct(m.roas*100)+' do equilíbrio':'—'))+'</span></div>'
     +'<div class="mini-bar"><span style="width:'+barw.toFixed(0)+'%;background:'+barcol+'"></span></div>');
   return hero+cards;
@@ -866,11 +848,10 @@ function v2Table(elId,title,hint,list,level){
   var shown=list.slice(0,80);
   var medC=median(shown.map(function(o){return o.sales>0?o.spend/o.sales:null;}).filter(function(x){return x!=null;}));
   var lvlLab=['Campanha','Conjunto / Grupo','Anúncio'][level];
-  var head='<thead><tr><th>'+lvlLab+'</th><th class="num">Gasto</th><th class="num">Impr.</th><th class="num">CPM</th><th class="num">Cliques</th><th class="num">CTR</th><th class="num">CPC</th><th class="num">Conv. pág.</th><th class="num">Vendas</th><th class="num">CAC</th><th class="num">Faturamento</th><th class="num">ROAS</th><th class="num">ROAS c/OB</th></tr></thead>';
+  var head='<thead><tr><th>'+lvlLab+'</th><th class="num">Gasto</th><th class="num">Impr.</th><th class="num">CPM</th><th class="num">Cliques</th><th class="num">CTR</th><th class="num">CPC</th><th class="num">Conv. pág.</th><th class="num">Vendas</th><th class="num">CAC</th><th class="num">Faturamento</th><th class="num">ROAS</th></tr></thead>';
   var body=shown.map(function(o){ var m=v2Metrics(o), sel=v2SelOf(o,level);
     var cacCell=m.cac!=null?'<span class="cac-pill '+cacClass(m.cac,medC)+'">'+money0(m.cac)+'</span>':'—';
     var roasCell=m.roas!=null?'<span class="roas-pill '+roasClass(m.roas)+'">'+roasf(m.roas)+'</span>':'—';
-    var roasobCell=m.roasob!=null?'<span class="roas-pill '+roasClass(m.roasob)+'">'+roasf(m.roasob)+'</span>':'—';
     return '<tr class="v2row'+(sel?' sel':'')+'" data-key="'+encodeURIComponent(o.key)+'">'
       +'<td><span class="v2name" title="'+esc(o.name)+'">'+(sel?'● ':'')+esc(o.name)+'</span></td>'
       +'<td class="num">'+money0(o.spend)+'</td>'
@@ -883,8 +864,7 @@ function v2Table(elId,title,hint,list,level){
       +'<td class="num">'+intf(o.sales)+'</td>'
       +'<td class="num">'+cacCell+'</td>'
       +'<td class="num">'+money0(o.rev)+'</td>'
-      +'<td class="num">'+roasCell+'</td>'
-      +'<td class="num">'+roasobCell+'</td></tr>'; }).join('');
+      +'<td class="num">'+roasCell+'</td></tr>'; }).join('');
   var more = list.length>shown.length ? ' <span class="hint">· top '+shown.length+' de '+list.length+' por gasto</span>' : '';
   el(elId).innerHTML='<div class="card"><div class="card-h">'+title+' <span class="hint">'+hint+'</span>'+more+'</div><div class="table-scroll"><table class="tbl v2tbl">'+head+'<tbody>'+body+'</tbody></table></div></div>';
   var byKey={}; shown.forEach(function(o){ byKey[o.key]=o; });
@@ -918,8 +898,6 @@ function mountV2(){
   el('v2Crumb').innerHTML=v2CrumbHTML();
   Array.prototype.forEach.call(el('v2Crumb').querySelectorAll('a.v2crumb'),function(a){ a.addEventListener('click',function(){ var lvl=+a.getAttribute('data-lvl');
     if(lvl===0) v2Sel={camp:null,adset:null,ad:null}; else if(lvl===1) v2Sel={camp:v2Sel.camp,adset:null,ad:null}; else v2Sel={camp:v2Sel.camp,adset:v2Sel.adset,ad:null}; mountV2(); }); });
-  // fator de OB por venda p/ o recorte atual (canal): m/g/ambos
-  v2OBps = obPerSaleFor(rng, v2Channel==='meta'?'m':(v2Channel==='google'?'g':null));
   // recorte pela seleção (o "100% filtrável"): KPIs + gráfico diário reagem só ao item escolhido
   var scope=base.filter(function(r){ return (v2Sel.camp==null||r.campaign===v2Sel.camp)&&(v2Sel.adset==null||r.adset===v2Sel.adset)&&(v2Sel.ad==null||r.ad===v2Sel.ad); });
   var agg=newNode('',''); scope.forEach(function(r){ accum(agg,r); });
