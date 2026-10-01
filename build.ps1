@@ -252,12 +252,12 @@ $payload=[pscustomobject]@{
 }
 $json=$payload | ConvertTo-Json -Depth 12 -Compress
 $mdpPayload=[pscustomobject]@{
-  generatedAt=$nowIso; generatedAtBR=$nowBR; taxMultiplier=$TAX; product='MDP'
+  generatedAt=$nowIso; generatedAtBR=$nowBR; taxMultiplier=$TAX; product='MPD'
   meta=$mdpMeta; google=$emptySrc
   ob=[pscustomobject]@{ daily=@($mdpObDaily) }
 }
 $mdpJson=$mdpPayload | ConvertTo-Json -Depth 12 -Compress
-[IO.File]::WriteAllText((Join-Path $root 'data.js'), ("window.MPI="+$json+";window.MDP="+$mdpJson+";"), $utf8)
+[IO.File]::WriteAllText((Join-Path $root 'data.js'), ("window.MPI="+$json+";window.MPD="+$mdpJson+";"), $utf8)
 
 Write-Host ("OK  META  dias={0} grain={1} vendas={2} attrib={3}  gasto+imp=R$ {4}  fat=R$ {5}" -f `
   $mBuilt.daily.Count,$mBuilt.grain.Count,$mBuilt.totals.sales,$mBuilt.totals.salesAttr,($mBuilt.totals.spend.ToString('N2',$BR)),($mBuilt.totals.rev.ToString('N2',$BR)))

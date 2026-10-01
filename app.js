@@ -1,10 +1,10 @@
-/* MPI — dashboard de vendas · render puro (sem libs, SVG na mão) sobre window.MPI / window.MDP */
+/* MPI — dashboard de vendas · render puro (sem libs, SVG na mão) sobre window.MPI / window.MPD */
 (function(){
 'use strict';
-/* ---- registro de funis (MPI + MDP) · seletor no topo ---- */
-var FUNNELS={ mpi:(window.MPI||{}), mdp:(window.MDP||{}) };
-var FUNNEL_LABELS={ mpi:'MPI', mdp:'MDP' };
-var FUNNEL_TABS={ mpi:['geral','consolidado','meta','google','v2','micro','ciclo','historico'], mdp:['geral','v2'] };
+/* ---- registro de funis (MPI + MPD) · seletor no topo ---- */
+var FUNNELS={ mpi:(window.MPI||{}), mpd:(window.MPD||{}) };
+var FUNNEL_LABELS={ mpi:'MPI', mpd:'MPD' };
+var FUNNEL_TABS={ mpi:['geral','consolidado','meta','google','v2','micro','ciclo','historico'], mpd:['geral','v2'] };
 var curFunnel='mpi';
 var D = FUNNELS.mpi || {};
 var arr = function(x){ return Array.isArray(x) ? x : (x ? [x] : []); };
@@ -45,7 +45,7 @@ function boundsOf(){
   [META,GOOG].forEach(function(S){ S.daily.forEach(function(d){ if(isDate(d.date))ds.push(d.date); }); });
   ds.sort(); return [ds[0]||'', ds[ds.length-1]||''];
 }
-// aplica um funil (MPI/MDP): re-aponta META/GOOG/OB/datas/CFG e zera o estado de UI por-funil
+// aplica um funil (MPI/MPD): re-aponta META/GOOG/OB/datas/CFG e zera o estado de UI por-funil
 function applyFunnel(key){
   curFunnel = (FUNNELS[key] && FUNNELS[key].meta) ? key : 'mpi';
   D = FUNNELS[curFunnel] || {};
@@ -217,7 +217,7 @@ function renderChartRoas(cfg,days){
 
 /* =================== DAILY TABLE =================== */
 function heatBg(rgb,frac){ return 'background:rgba('+rgb+','+(0.10+0.42*clamp(frac)).toFixed(3)+')'; }
-function renderDaily(cfg,rng){
+function renderDaily(cfg,rng,outId){
   var chk=cfg.hasCheckout;
   var ob=obAggFor(rng, cfg.pfx==='m'?'m':'g');   // OB por dia (exato) desta origem
   var rows=daysInRange(cfg.S,rng).slice().sort(function(a,b){return b.date.localeCompare(a.date);});
@@ -241,7 +241,7 @@ function renderDaily(cfg,rng){
   var a=aggDaily(cfg.S,rng), tr=dv(a.rev,a.spend), trob=dv(a.rev+ob.rev,a.spend), tl=a.rev-a.spend, tc=a.sales>0?dv(a.spend,a.sales):null;
   var chkF=chk?('<td class="num">'+(a.lpv>0?pct(dv(a.checkout,a.lpv)*100):'—')+'</td><td class="num">'+(a.checkout>0?pct(dv(a.sales,a.checkout)*100):'—')+'</td>'):'';
   var foot='<tfoot><tr><td>Total</td><td class="num">'+money0(a.spend)+'</td><td class="num">'+intf(a.sales)+'</td><td class="num">'+(tc!=null?money0(tc):'—')+'</td>'+chkF+'<td class="num">'+money0(a.rev)+'</td><td class="num">'+(a.spend>0?roasf(tr):'—')+'</td><td class="num">'+(a.spend>0?roasf(trob):'—')+'</td><td class="num '+(tl>=0?'pos':'neg')+'">'+money0(tl)+'</td></tr></tfoot>';
-  el(cfg.pfx+'-daily').innerHTML=head+'<tbody>'+body+'</tbody>'+foot;
+  el(outId||(cfg.pfx+'-daily')).innerHTML=head+'<tbody>'+body+'</tbody>'+foot;
 }
 
 /* =================== OTIMIZAÇÃO (árvore) =================== */
@@ -532,6 +532,8 @@ function renderGeral(rng){
   var fRoas=dv(fatTotal,spend);
   var foot='<tfoot><tr><td>Total</td><td class="num">'+money0(spend)+'</td><td class="num">'+intf(sales)+'</td><td class="num">'+money0(rev)+'</td><td class="num">'+money0(ob.rev)+'</td><td class="num">'+money0(fatTotal)+'</td><td class="num">'+(spend>0?roasf(fRoas):'—')+'</td><td class="num '+(lucroOB>=0?'pos':'neg')+'">'+money0(lucroOB)+'</td></tr></tfoot>';
   el('geralDaily').innerHTML=head+'<tbody>'+body+'</tbody>'+foot;
+  // MPD: Visão Diária com conversões (Tx Chk = checkout/LPV, Tx Compra = venda/checkout) — Meta-only
+  if(curFunnel==='mpd' && el('mpdDaily')) renderDaily(CFG.meta, rng, 'mpdDaily');
 }
 
 /* =================== HISTÓRICO POR DIA DA SEMANA =================== */
@@ -997,7 +999,11 @@ function applyFunnelTabs(){
   var allowed=FUNNEL_TABS[curFunnel]||FUNNEL_TABS.mpi;
   Array.prototype.forEach.call(document.querySelectorAll('.tab'),function(t){ t.style.display=(allowed.indexOf(t.getAttribute('data-tab'))>=0)?'':'none'; });
   var gc=el('goalCard'); if(gc) gc.style.display=(curFunnel==='mpi')?'':'none';
-  var eb=el('editband'); if(eb) eb.textContent=(curFunnel==='mpi')?'Funil de Venda Direta · Produto MPI · Meta & Google Ads':'Funil de Venda Direta · Funil MDP · Meta Ads (Google em breve)';
+  // MPD mostra a Visão Diária com conversões (Tx Chk/Tx Compra); MPI mantém a diária OB-focada
+  var isMpd=(curFunnel==='mpd');
+  var gd=el('geralDailyCard'); if(gd) gd.style.display=isMpd?'none':'';
+  var md=el('mpdDailyCard'); if(md) md.style.display=isMpd?'':'none';
+  var eb=el('editband'); if(eb) eb.textContent=(curFunnel==='mpi')?'Funil de Venda Direta · Produto MPI · Meta & Google Ads':'Funil de Venda Direta · Funil MPD · Meta Ads (Google em breve)';
 }
 function initTabs(){ Array.prototype.forEach.call(document.querySelectorAll('.tab'),function(t){ t.addEventListener('click',function(){ var id=t.getAttribute('data-tab'); activateTab(id); if(history.replaceState)history.replaceState(null,'','#'+id); }); });
   var h=(location.hash||'').replace('#',''); activateTab(((FUNNEL_TABS[curFunnel]||[]).indexOf(h)>=0)?h:FUNNEL_TABS[curFunnel][0]);
@@ -1024,6 +1030,6 @@ function initCoverage(){ el('updated').textContent=D.generatedAtBR||'—'; el('t
     +' · <b>'+intf((tm.sales||0)+(tg.sales||0))+'</b> vendas atribuídas ao tráfego pago ('+intf(tm.sales||0)+' Meta · '+intf(tg.sales||0)+' Google).'; }
 
 applyFunnel('mpi');
-if(!META.daily.length && !GOOG.daily.length && !(FUNNELS.mdp && FUNNELS.mdp.meta && arr(FUNNELS.mdp.meta.daily).length)){ el('coverage').innerHTML='<b>Sem dados.</b> Rode o build.ps1 para gerar o data.js.'; }
+if(!META.daily.length && !GOOG.daily.length && !(FUNNELS.mpd && FUNNELS.mpd.meta && arr(FUNNELS.mpd.meta.daily).length)){ el('coverage').innerHTML='<b>Sem dados.</b> Rode o build.ps1 para gerar o data.js.'; }
 else { initFunnelBar(); applyFunnelTabs(); initCoverage(); initPeriods(); initTabs(); renderAll(); renderGoal(); initHistWin(); renderHistorico(); renderCiclo(); }
 })();
