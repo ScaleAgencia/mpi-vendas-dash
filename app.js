@@ -224,7 +224,7 @@ function renderDaily(cfg,rng,outId){
   var maxS=Math.max.apply(null,rows.map(function(r){return r.spend||0;}).concat([1]));
   var medCac=median(rows.map(function(r){return r.sales>0?dv(r.spend,r.sales):null;}));
   var chkH=chk?'<th>Tx Chk</th><th>Tx Compra</th>':'';
-  var head='<thead><tr><th>Dia</th><th>Investimento</th><th>Vendas</th><th>CAC</th>'+chkH+'<th>Faturamento</th><th>ROAS</th><th>ROAS c/OB</th><th>Lucro</th></tr></thead>';
+  var head='<thead><tr><th>Dia</th><th>Investimento</th><th>Vendas</th><th>CAC</th><th>Conv. pág.</th>'+chkH+'<th>Faturamento</th><th>ROAS</th><th>ROAS c/OB</th><th>Lucro</th></tr></thead>';
   var body=rows.map(function(r){ var roas=dv(r.rev,r.spend), cac=r.sales>0?dv(r.spend,r.sales):null, lucro=r.rev-r.spend;
     var dob=(ob.byDay[r.date]||{r:0}).r||0, roasob=dv(r.rev+dob,r.spend);
     var chkC=chk?('<td class="num">'+(r.lpv>0?pct(dv(r.checkout,r.lpv)*100):'—')+'</td><td class="num">'+(r.checkout>0?pct(dv(r.sales,r.checkout)*100):'—')+'</td>'):'';
@@ -232,15 +232,16 @@ function renderDaily(cfg,rng,outId){
       +'<td class="num"><span class="heatcell" style="'+heatBg('91,157,255',r.spend/maxS)+'">'+money0(r.spend)+'</span></td>'
       +'<td class="num">'+intf(r.sales)+'</td>'
       +'<td class="num">'+(cac!=null?'<span class="cac-pill '+cacClass(cac,medCac)+'">'+money0(cac)+'</span>':'—')+'</td>'
+      +'<td class="num">'+(r.clicks>0?pct(dv(r.sales,r.clicks)*100):'—')+'</td>'
       +chkC
       +'<td class="num">'+money0(r.rev)+'</td>'
       +'<td class="num">'+(r.spend>0?'<span class="roas-pill '+roasClass(roas)+'">'+roasf(roas)+'</span>':'—')+'</td>'
       +'<td class="num">'+(r.spend>0?'<span class="roas-pill '+roasClass(roasob)+'">'+roasf(roasob)+'</span>':'—')+'</td>'
       +'<td class="num '+(lucro>=0?'pos':'neg')+'">'+money0(lucro)+'</td></tr>'; }).join('');
-  if(!rows.length) body='<tr><td colspan="'+(chk?10:8)+'" class="empty">Sem dados no período.</td></tr>';
+  if(!rows.length) body='<tr><td colspan="'+(chk?11:9)+'" class="empty">Sem dados no período.</td></tr>';
   var a=aggDaily(cfg.S,rng), tr=dv(a.rev,a.spend), trob=dv(a.rev+ob.rev,a.spend), tl=a.rev-a.spend, tc=a.sales>0?dv(a.spend,a.sales):null;
   var chkF=chk?('<td class="num">'+(a.lpv>0?pct(dv(a.checkout,a.lpv)*100):'—')+'</td><td class="num">'+(a.checkout>0?pct(dv(a.sales,a.checkout)*100):'—')+'</td>'):'';
-  var foot='<tfoot><tr><td>Total</td><td class="num">'+money0(a.spend)+'</td><td class="num">'+intf(a.sales)+'</td><td class="num">'+(tc!=null?money0(tc):'—')+'</td>'+chkF+'<td class="num">'+money0(a.rev)+'</td><td class="num">'+(a.spend>0?roasf(tr):'—')+'</td><td class="num">'+(a.spend>0?roasf(trob):'—')+'</td><td class="num '+(tl>=0?'pos':'neg')+'">'+money0(tl)+'</td></tr></tfoot>';
+  var foot='<tfoot><tr><td>Total</td><td class="num">'+money0(a.spend)+'</td><td class="num">'+intf(a.sales)+'</td><td class="num">'+(tc!=null?money0(tc):'—')+'</td><td class="num">'+(a.clicks>0?pct(dv(a.sales,a.clicks)*100):'—')+'</td>'+chkF+'<td class="num">'+money0(a.rev)+'</td><td class="num">'+(a.spend>0?roasf(tr):'—')+'</td><td class="num">'+(a.spend>0?roasf(trob):'—')+'</td><td class="num '+(tl>=0?'pos':'neg')+'">'+money0(tl)+'</td></tr></tfoot>';
   el(outId||(cfg.pfx+'-daily')).innerHTML=head+'<tbody>'+body+'</tbody>'+foot;
 }
 
