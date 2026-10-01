@@ -20,6 +20,8 @@ New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
 $VENDAS_ID  = '1BJ-T_Aj5oeMge667xWtX_SfGCSiibcFo7l0yLWTt_BQ'; $VENDAS_GID = '0'   # aba "vendas"
 $META_ID    = '15Gs6F0MDFA0oreosbcIZnibu69JGvIfCxNuuSlTxvNg'; $META_GID   = '1267496296'   # queries Meta (aba "todas as contas nomes valor gasto" - so campanhas MPI, atualizada a partir de 03/09/2026)
 $GOOGLE_ID  = '1uXhxl7xafcdE8jLbA611a_KNYzEjipTEtpiP0HePD58'; $GOOGLE_GID = '0'   # queries Google/YouTube
+# ---- FUNIL MDP (novo, 01/10/2026) - Meta only por enquanto (Google sobe depois) ----
+$MDP_META_ID='1o5sx99MsP2ultgz5z_wCz_gDhPlr9pY_ar6BrkKlI0I'; $MDP_META_GID='0'   # MDP queries Meta (aba "Queries | Meta Ads MPD")
 $TAX = 1.1385      # imposto Meta (+13,85%) aplicado em TODO gasto de Meta
 # produto MPI = venda direta principal (rotulo mudou ao longo do tempo)
 $MPI_PRODUCTS = @('MAPA DO PRIMEIRO INVESTIMENTO (MPI)','MPI')
@@ -63,9 +65,11 @@ function GDay($s){ $s=Norm $s; if($s -match '^(\d{1,2})/(\d{1,2})/(\d{4})'){ ret
 # =====================================================================
 Write-Host "Baixando planilhas..."
 $vCsv=Join-Path $dataDir 'vendas.csv'; $mCsv=Join-Path $dataDir 'meta.csv'; $gCsv=Join-Path $dataDir 'google.csv'
+$mdpCsv=Join-Path $dataDir 'mdp-meta.csv'
 Get-Sheet $VENDAS_ID $VENDAS_GID $vCsv
 Get-Sheet $META_ID   $META_GID   $mCsv
 Get-Sheet $GOOGLE_ID $GOOGLE_GID $gCsv
+Get-Sheet $MDP_META_ID $MDP_META_GID $mdpCsv
 
 $v = Read-Csv $vCsv; $vh=$v[0]; $vd=$v[1..($v.Count-1)]
 $V_PROD=HdrLike $vh 'produto'; $V_DATE=HdrLike $vh 'data'; $V_VAL=HdrLike $vh 'valor'; $V_FAT=HdrLike $vh 'faturamento'
@@ -83,6 +87,10 @@ function ObKey($prod){ $p=Deaccent $prod
 $metaSales = New-Object System.Collections.Generic.List[object]
 $googleSales = New-Object System.Collections.Generic.List[object]
 $obSales = New-Object System.Collections.Generic.List[object]
+# ---- MDP (funil novo): atribui por utm_campaign comecando com "MDP" (produto ainda nao mapeado) ----
+$mdpMetaSales = New-Object System.Collections.Generic.List[object]
+$mdpGoogleSales = New-Object System.Collections.Generic.List[object]
+$mdpObSales = New-Object System.Collections.Generic.List[object]
 $nSkip=0
 foreach($r in $vd){
   if($r.Count -le $V_CAMP){ continue }
@@ -92,15 +100,24 @@ foreach($r in $vd){
   $prod = Norm $r[$V_PROD]
   $rev = MoneyBR $r[$V_FAT]; $gross = if($V_VAL -ge 0){ MoneyBR $r[$V_VAL] } else { $rev }
   $stag='g'; if($src -eq 'facebook-ads'){ $stag='m' }
-  if($MPI_PRODUCTS -contains $prod){
-    if($src -eq 'facebook-ads'){ $dst=$metaSales } else { $dst=$googleSales }
-    $dst.Add([pscustomobject]@{ date=$d; rev=$rev; gross=$gross
-      camp=(Norm $r[$V_CAMP]); term=(Norm $r[$V_TERM]); cont=(Norm $r[$V_CONT]); med=(Norm $r[$V_MED]) })
-  } else {
-    $ok = ObKey $prod
-    if($ok -ne ''){ $obSales.Add([pscustomobject]@{ date=$d; k=$ok; src=$stag; rev=$rev; gross=$gross }) }
-    else { $nSkip++ }
+  $camp = Norm $r[$V_CAMP]
+  $isMdp = ((Deaccent $camp) -match '^mdp\b')   # funil MDP = campanhas "MDP | ..."
+  $ok = ObKey $prod
+  if($ok -ne ''){
+    # order bump: separa por funil (campanha MDP -> OB do MDP; senao OB do MPI, comportamento original)
+    if($isMdp){ $mdpObSales.Add([pscustomobject]@{ date=$d; k=$ok; src=$stag; rev=$rev; gross=$gross }) }
+    else { $obSales.Add([pscustomobject]@{ date=$d; k=$ok; src=$stag; rev=$rev; gross=$gross }) }
   }
+  elseif($MPI_PRODUCTS -contains $prod){
+    if($src -eq 'facebook-ads'){ $dst=$metaSales } else { $dst=$googleSales }
+    $dst.Add([pscustomobject]@{ date=$d; rev=$rev; gross=$gross; camp=$camp; term=(Norm $r[$V_TERM]); cont=(Norm $r[$V_CONT]); med=(Norm $r[$V_MED]) })
+  }
+  elseif($isMdp){
+    # venda principal do funil MDP (produto proprio, atribuida por utm_campaign)
+    if($src -eq 'facebook-ads'){ $dst=$mdpMetaSales } else { $dst=$mdpGoogleSales }
+    $dst.Add([pscustomobject]@{ date=$d; rev=$rev; gross=$gross; camp=$camp; term=(Norm $r[$V_TERM]); cont=(Norm $r[$V_CONT]); med=(Norm $r[$V_MED]) })
+  }
+  else { $nSkip++ }
 }
 # agrega OB por dia x produto x origem (period-reactive no front)
 $obAgg=@{}
@@ -109,7 +126,14 @@ foreach($s in $obSales){ $key="$($s.date)`u$($s.k)`u$($s.src)"
   $o=$obAgg[$key]; $o.sales++; $o.rev+=$s.rev; $o.gross+=$s.gross }
 $obDaily=@()
 foreach($o in ($obAgg.Values | Sort-Object date)){ $obDaily += [pscustomobject]@{ d=$o.date; k=$o.k; src=$o.src; s=[int]$o.sales; r=[math]::Round($o.rev,2); g=[math]::Round($o.gross,2) } }
-Write-Host ("Vendas MPI: Meta={0}  Google={1}  |  Order bumps: {2} vendas ({3} linhas/dia-produto)" -f $metaSales.Count,$googleSales.Count,$obSales.Count,$obDaily.Count)
+# OB do MDP (mesma logica, lista separada)
+$mdpObAgg=@{}
+foreach($s in $mdpObSales){ $key="$($s.date)`u$($s.k)`u$($s.src)"
+  if(-not $mdpObAgg.ContainsKey($key)){ $mdpObAgg[$key]=[pscustomobject]@{date=$s.date;k=$s.k;src=$s.src;sales=0;rev=0.0;gross=0.0} }
+  $o=$mdpObAgg[$key]; $o.sales++; $o.rev+=$s.rev; $o.gross+=$s.gross }
+$mdpObDaily=@()
+foreach($o in ($mdpObAgg.Values | Sort-Object date)){ $mdpObDaily += [pscustomobject]@{ d=$o.date; k=$o.k; src=$o.src; s=[int]$o.sales; r=[math]::Round($o.rev,2); g=[math]::Round($o.gross,2) } }
+Write-Host ("Vendas MPI: Meta={0} Google={1} OB={2}  |  MDP: Meta={3} Google={4} OB={5}" -f $metaSales.Count,$googleSales.Count,$obSales.Count,$mdpMetaSales.Count,$mdpGoogleSales.Count,$mdpObSales.Count)
 
 # =====================================================================
 #  Build-Source: cruza queries x vendas de uma origem
@@ -120,14 +144,16 @@ function MatchName($val,$deMap){ $vd=Deaccent $val; if($vd -eq ''){return ''}; i
 function Build-Source($qRows,$qh,$sales,$cfg){
   $Q_CAMP=HdrLike $qh 'campaign name'
   $Q_SET = if($cfg.hasLpv){ HdrLike $qh 'adset name' } else { HdrLike $qh 'ad group name' }
+  if($Q_SET -lt 0){ $Q_SET=HdrLike $qh 'ad set name' }   # variante "Ad Set Name" com espaco (MDP)
+  if($Q_SET -lt 0){ $Q_SET=HdrLike $qh 'ad group name' }
   $Q_AD  =HdrLike $qh 'ad name'
-  $Q_SPEND = HdrLike $qh '*spend*'; if($Q_SPEND -lt 0){ $Q_SPEND=HdrLike $qh '*cost*' }
+  $Q_SPEND = HdrLike $qh '*spend*'; if($Q_SPEND -lt 0){ $Q_SPEND=HdrLike $qh '*spent*' }; if($Q_SPEND -lt 0){ $Q_SPEND=HdrLike $qh '*cost*' }
   $Q_IMP=HdrLike $qh 'impressions'
   $Q_CLK = HdrLike $qh '*link clicks*'; if($Q_CLK -lt 0){ $Q_CLK=HdrLike $qh 'clicks' }
   $Q_DAY = HdrLike $qh 'date'; if($Q_DAY -lt 0){ $Q_DAY=HdrLike $qh 'day' }
   $Q_LPV = if($cfg.hasLpv){ HdrLike $qh '*landing page view*' } else { -1 }
   $Q_CHK = if($cfg.hasCheckout){ HdrLike $qh '*checkout*' } else { -1 }
-  foreach($pair in @(@('Campaign',$Q_CAMP),@('Ad',$Q_AD),@('Spend',$Q_SPEND),@('Impr',$Q_IMP),@('Clicks',$Q_CLK),@('Day',$Q_DAY))){ if($pair[1] -lt 0){ throw ("Query: coluna nao encontrada: "+$pair[0]) } }
+  foreach($pair in @(@('Campaign',$Q_CAMP),@('Conjunto',$Q_SET),@('Ad',$Q_AD),@('Spend',$Q_SPEND),@('Impr',$Q_IMP),@('Clicks',$Q_CLK),@('Day',$Q_DAY))){ if($pair[1] -lt 0){ throw ("Query: coluna nao encontrada: "+$pair[0]) } }
 
   # ---- mapas de nome p/ atribuicao (deaccent -> nome real) + pares/triplas validas ----
   $campDe=@{}; $adDe=@{}; $setDe=@{}; $qPair=@{}; $qTriple=@{}
@@ -206,9 +232,14 @@ function Build-Source($qRows,$qh,$sales,$cfg){
   }
 }
 
-# ---- roda as duas origens ------------------------------------------
+# ---- roda as duas origens (MPI) ------------------------------------
 $mAll = Read-Csv $mCsv; $mBuilt = Build-Source $mAll[1..($mAll.Count-1)] $mAll[0] $metaSales @{ hasLpv=$true; hasCheckout=$true; tax=$true }
 $gAll = Read-Csv $gCsv; $gBuilt = Build-Source $gAll[1..($gAll.Count-1)] $gAll[0] $googleSales @{ hasLpv=$false; hasCheckout=$false; tax=$false }
+# ---- MDP: so Meta por enquanto; Google = fonte vazia ate subirem ----
+$mdpAll = Read-Csv $mdpCsv; $mdpMeta = Build-Source $mdpAll[1..($mdpAll.Count-1)] $mdpAll[0] $mdpMetaSales @{ hasLpv=$true; hasCheckout=$true; tax=$true }
+$emptySrc=[pscustomobject]@{ dateMin=''; dateMax=''; salesDateMin=''; salesDateMax=''
+  totals=[pscustomobject]@{spendRaw=0;spend=0;impr=0;clicks=0;lpv=0;checkout=0;sales=0;rev=0.0;gross=0.0;salesAttr=0}
+  names=@(); daily=@(); grain=@() }
 
 $nowIso=(Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
 $nowBR=[System.TimeZoneInfo]::ConvertTimeBySystemTimeZoneId([DateTime]::UtcNow,'E. South America Standard Time').ToString('dd/MM/yyyy HH:mm')
@@ -220,9 +251,17 @@ $payload=[pscustomobject]@{
   ob=[pscustomobject]@{ daily=@($obDaily) }
 }
 $json=$payload | ConvertTo-Json -Depth 12 -Compress
-[IO.File]::WriteAllText((Join-Path $root 'data.js'), ("window.MPI="+$json+";"), $utf8)
+$mdpPayload=[pscustomobject]@{
+  generatedAt=$nowIso; generatedAtBR=$nowBR; taxMultiplier=$TAX; product='MDP'
+  meta=$mdpMeta; google=$emptySrc
+  ob=[pscustomobject]@{ daily=@($mdpObDaily) }
+}
+$mdpJson=$mdpPayload | ConvertTo-Json -Depth 12 -Compress
+[IO.File]::WriteAllText((Join-Path $root 'data.js'), ("window.MPI="+$json+";window.MDP="+$mdpJson+";"), $utf8)
 
 Write-Host ("OK  META  dias={0} grain={1} vendas={2} attrib={3}  gasto+imp=R$ {4}  fat=R$ {5}" -f `
   $mBuilt.daily.Count,$mBuilt.grain.Count,$mBuilt.totals.sales,$mBuilt.totals.salesAttr,($mBuilt.totals.spend.ToString('N2',$BR)),($mBuilt.totals.rev.ToString('N2',$BR)))
 Write-Host ("OK  GOOGLE dias={0} grain={1} vendas={2} attrib={3}  gasto=R$ {4}  fat=R$ {5}" -f `
   $gBuilt.daily.Count,$gBuilt.grain.Count,$gBuilt.totals.sales,$gBuilt.totals.salesAttr,($gBuilt.totals.spend.ToString('N2',$BR)),($gBuilt.totals.rev.ToString('N2',$BR)))
+Write-Host ("OK  MDP(Meta) dias={0} grain={1} vendas={2} attrib={3}  gasto+imp=R$ {4}  fat=R$ {5}" -f `
+  $mdpMeta.daily.Count,$mdpMeta.grain.Count,$mdpMeta.totals.sales,$mdpMeta.totals.salesAttr,($mdpMeta.totals.spend.ToString('N2',$BR)),($mdpMeta.totals.rev.ToString('N2',$BR)))

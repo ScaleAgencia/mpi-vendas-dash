@@ -1,7 +1,12 @@
-/* MPI — dashboard de vendas · render puro (sem libs, SVG na mão) sobre window.MPI */
+/* MPI — dashboard de vendas · render puro (sem libs, SVG na mão) sobre window.MPI / window.MDP */
 (function(){
 'use strict';
-var D = window.MPI || {};
+/* ---- registro de funis (MPI + MDP) · seletor no topo ---- */
+var FUNNELS={ mpi:(window.MPI||{}), mdp:(window.MDP||{}) };
+var FUNNEL_LABELS={ mpi:'MPI', mdp:'MDP' };
+var FUNNEL_TABS={ mpi:['geral','consolidado','meta','google','v2','micro','ciclo','historico'], mdp:['geral','v2'] };
+var curFunnel='mpi';
+var D = FUNNELS.mpi || {};
 var arr = function(x){ return Array.isArray(x) ? x : (x ? [x] : []); };
 var clamp = function(x){ return Math.max(0, Math.min(1, x)); };
 var nf0 = new Intl.NumberFormat('pt-BR');
@@ -30,10 +35,7 @@ function prep(S){
       checkout:+g.chk||0, sales:+g.vn||0, rev:+g.rv||0, gross:+g.gr||0 }; });
   return S;
 }
-var META = prep(D.meta), GOOG = prep(D.google);
-META._grain.forEach(function(r){ r.channel='meta'; });   // tag p/ o filtro de canal da aba V2
-GOOG._grain.forEach(function(r){ r.channel='google'; });
-var OB = arr(D.ob && D.ob.daily);
+var META, GOOG, OB, minDate, maxDate;   // reatribuídos por applyFunnel()
 var OB_LABELS={combo3:'Combo 3 em 1',exterior:'Investimentos no Exterior',cripto:'Criptomoedas',planilhas:'Planilhas complementares MPI'};
 var OB_ORDER=['combo3','exterior','cripto','planilhas'];
 
@@ -43,7 +45,23 @@ function boundsOf(){
   [META,GOOG].forEach(function(S){ S.daily.forEach(function(d){ if(isDate(d.date))ds.push(d.date); }); });
   ds.sort(); return [ds[0]||'', ds[ds.length-1]||''];
 }
-var B=boundsOf(), minDate=B[0], maxDate=B[1];
+// aplica um funil (MPI/MDP): re-aponta META/GOOG/OB/datas/CFG e zera o estado de UI por-funil
+function applyFunnel(key){
+  curFunnel = (FUNNELS[key] && FUNNELS[key].meta) ? key : 'mpi';
+  D = FUNNELS[curFunnel] || {};
+  META = prep(D.meta); GOOG = prep(D.google);
+  META._grain.forEach(function(r){ r.channel='meta'; });
+  GOOG._grain.forEach(function(r){ r.channel='google'; });
+  OB = arr(D.ob && D.ob.daily);
+  var B=boundsOf(); minDate=B[0]; maxDate=B[1];
+  if(typeof CFG!=='undefined' && CFG){ CFG.meta.S=META; CFG.google.S=GOOG; }
+  // reset de estado por-funil (evita seleção/ordenção vazando entre funis)
+  treeInit={meta:false,google:false}; expanded={meta:{},google:{}};
+  treeSort={meta:{key:'rev',rev:false},google:{key:'rev',rev:false}};
+  microSel={camp:null,adset:null,ad:null}; microExp={};
+  v2Sel={camp:null,adset:null,ad:null}; v2Channel='geral'; v2LineMetric='roas';
+  period='tudo'; customRange=null;
+}
 function addDays(iso,n){ var p=iso.split('-'); var dt=new Date(Date.UTC(+p[0],+p[1]-1,+p[2])); dt.setUTCDate(dt.getUTCDate()+n); return dt.toISOString().slice(0,10); }
 function daysBetween(a,b){ var pa=a.split('-'),pb=b.split('-'); return Math.round((Date.UTC(+pb[0],+pb[1]-1,+pb[2])-Date.UTC(+pa[0],+pa[1]-1,+pa[2]))/86400000); }
 function inRange(dt,r){ return dt>=r[0] && dt<=r[1]; }
@@ -150,7 +168,7 @@ function renderFunnel(cfg,a,p){
 }
 
 /* =================== CHARTS =================== */
-function xticks(days){ var n=days.length; if(n<=1)return [0]; var step=Math.max(1,Math.round(n/7)); var t=[]; for(var i=0;i<n;i+=step)t.push(i); if(t[t.length-1]!==n-1)t.push(n-1); return t; }
+function xticks(days){ var n=days.length; if(n===0)return []; if(n<=1)return [0]; var step=Math.max(1,Math.round(n/7)); var t=[]; for(var i=0;i<n;i+=step)t.push(i); if(t[t.length-1]!==n-1)t.push(n-1); return t; }
 var _tip=null;
 function tipEl(){ if(!_tip){ _tip=document.createElement('div'); _tip.className='chart-tip'; _tip.style.display='none'; document.body.appendChild(_tip); } return _tip; }
 function tipShow(html,x,y){ var t=tipEl(); t.innerHTML=html; t.style.display='block'; var w=t.offsetWidth,h=t.offsetHeight,nx=x+14,ny=y+14; if(nx+w>window.innerWidth-8)nx=x-w-14; if(ny+h>window.innerHeight-8)ny=y-h-14; t.style.left=Math.max(6,nx)+'px'; t.style.top=Math.max(6,ny)+'px'; }
@@ -968,16 +986,44 @@ function initPeriods(){ el('periods').innerHTML=periodsHTML();
   de.addEventListener('change',onDate); at.addEventListener('change',onDate); syncPeriodUI(); }
 
 var TABS=['geral','consolidado','meta','google','v2','micro','ciclo','historico'];
-function activateTab(id){ Array.prototype.forEach.call(document.querySelectorAll('.tab'),function(x){x.classList.toggle('active',x.getAttribute('data-tab')===id);});
-  TABS.forEach(function(k){ el('tab-'+k).classList.toggle('hidden',k!==id); }); }
+function activateTab(id){
+  var allowed=FUNNEL_TABS[curFunnel]||FUNNEL_TABS.mpi;
+  if(allowed.indexOf(id)<0) id=allowed[0];
+  Array.prototype.forEach.call(document.querySelectorAll('.tab'),function(x){x.classList.toggle('active',x.getAttribute('data-tab')===id);});
+  TABS.forEach(function(k){ var e=el('tab-'+k); if(e) e.classList.toggle('hidden',k!==id); });
+}
+// mostra só as abas do funil atual + esconde a meta de investimento (só MPI) + rótulo da faixa
+function applyFunnelTabs(){
+  var allowed=FUNNEL_TABS[curFunnel]||FUNNEL_TABS.mpi;
+  Array.prototype.forEach.call(document.querySelectorAll('.tab'),function(t){ t.style.display=(allowed.indexOf(t.getAttribute('data-tab'))>=0)?'':'none'; });
+  var gc=el('goalCard'); if(gc) gc.style.display=(curFunnel==='mpi')?'':'none';
+  var eb=el('editband'); if(eb) eb.textContent=(curFunnel==='mpi')?'Funil de Venda Direta · Produto MPI · Meta & Google Ads':'Funil de Venda Direta · Funil MDP · Meta Ads (Google em breve)';
+}
 function initTabs(){ Array.prototype.forEach.call(document.querySelectorAll('.tab'),function(t){ t.addEventListener('click',function(){ var id=t.getAttribute('data-tab'); activateTab(id); if(history.replaceState)history.replaceState(null,'','#'+id); }); });
-  var h=(location.hash||'').replace('#',''); if(TABS.indexOf(h)>=0)activateTab(h);
-  window.addEventListener('hashchange',function(){ var k=(location.hash||'').replace('#',''); if(TABS.indexOf(k)>=0)activateTab(k); }); }
+  var h=(location.hash||'').replace('#',''); activateTab(((FUNNEL_TABS[curFunnel]||[]).indexOf(h)>=0)?h:FUNNEL_TABS[curFunnel][0]);
+  window.addEventListener('hashchange',function(){ var k=(location.hash||'').replace('#',''); if((FUNNEL_TABS[curFunnel]||[]).indexOf(k)>=0)activateTab(k); }); }
+function initFunnelBar(){
+  var bar=el('funnelBar'); if(!bar) return;
+  var keys=Object.keys(FUNNELS).filter(function(k){ return FUNNELS[k] && FUNNELS[k].meta; });
+  if(keys.length<2){ bar.style.display='none'; return; }
+  bar.innerHTML='<span class="fnl-lab">Funil</span>'+keys.map(function(k){ return '<button class="fnl-btn'+(k===curFunnel?' on':'')+'" data-fn="'+k+'">'+esc(FUNNEL_LABELS[k]||k)+'</button>'; }).join('');
+  Array.prototype.forEach.call(bar.querySelectorAll('.fnl-btn'),function(b){ b.addEventListener('click',function(){ switchFunnel(b.getAttribute('data-fn')); }); });
+}
+function switchFunnel(key){
+  if(key===curFunnel || !(FUNNELS[key]&&FUNNELS[key].meta)) return;
+  applyFunnel(key);
+  Array.prototype.forEach.call(document.querySelectorAll('#funnelBar .fnl-btn'),function(b){ b.classList.toggle('on',b.getAttribute('data-fn')===curFunnel); });
+  applyFunnelTabs(); initCoverage(); initPeriods(); activateTab(FUNNEL_TABS[curFunnel][0]);
+  renderAll(); renderGoal(); initHistWin(); renderHistorico(); renderCiclo();
+  window.scrollTo(0,0);
+}
 function initCoverage(){ el('updated').textContent=D.generatedAtBR||'—'; el('taxf').textContent=(D.taxMultiplier||1.1385).toFixed(4).replace('.',',');
-  var tm=META.totals||{}, tg=GOOG.totals||{};
-  el('coverage').innerHTML='Produto <b>MPI</b> · Meta '+fmtBR((META.dateMin||''))+' → '+fmtBR((META.dateMax||''))+' · Google '+fmtBR((GOOG.dateMin||''))+' → '+fmtBR((GOOG.dateMax||''))
-    +' · <b>'+intf((tm.sales||0)+(tg.sales||0))+'</b> vendas MPI atribuídas ao tráfego pago ('+intf(tm.sales||0)+' Meta · '+intf(tg.sales||0)+' Google).'; }
+  var tm=META.totals||{}, tg=GOOG.totals||{}, prod=D.product||'MPI';
+  var gpart=(GOOG.daily&&GOOG.daily.length)?('Google '+fmtBR((GOOG.dateMin||''))+' → '+fmtBR((GOOG.dateMax||''))):'Google: ainda não subiu';
+  el('coverage').innerHTML='Funil <b>'+esc(prod)+'</b> · Meta '+fmtBR((META.dateMin||''))+' → '+fmtBR((META.dateMax||''))+' · '+gpart
+    +' · <b>'+intf((tm.sales||0)+(tg.sales||0))+'</b> vendas atribuídas ao tráfego pago ('+intf(tm.sales||0)+' Meta · '+intf(tg.sales||0)+' Google).'; }
 
-if(!META.daily.length && !GOOG.daily.length){ el('coverage').innerHTML='<b>Sem dados.</b> Rode o build.ps1 para gerar o data.js.'; }
-else { initCoverage(); initPeriods(); initTabs(); renderAll(); renderGoal(); initHistWin(); renderHistorico(); renderCiclo(); }
+applyFunnel('mpi');
+if(!META.daily.length && !GOOG.daily.length && !(FUNNELS.mdp && FUNNELS.mdp.meta && arr(FUNNELS.mdp.meta.daily).length)){ el('coverage').innerHTML='<b>Sem dados.</b> Rode o build.ps1 para gerar o data.js.'; }
+else { initFunnelBar(); applyFunnelTabs(); initCoverage(); initPeriods(); initTabs(); renderAll(); renderGoal(); initHistWin(); renderHistorico(); renderCiclo(); }
 })();
