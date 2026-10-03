@@ -217,32 +217,44 @@ function renderChartRoas(cfg,days){
 
 /* =================== DAILY TABLE =================== */
 function heatBg(rgb,frac){ return 'background:rgba('+rgb+','+(0.10+0.42*clamp(frac)).toFixed(3)+')'; }
-function renderDaily(cfg,rng,outId){
-  var chk=cfg.hasCheckout;
-  var ob=obAggFor(rng, cfg.pfx==='m'?'m':'g');   // OB por dia (exato) desta origem
-  var rows=daysInRange(cfg.S,rng).slice().sort(function(a,b){return b.date.localeCompare(a.date);});
+/* Visão Diária PADRONIZADA (14 colunas, mesma ordem em todas as abas):
+   Dia · Investimento · Faturamento · ROAS · ROAS c/OB · Vendas · CAC · CPM · CTR · Connect · Conv.Pág · Tx Chk · Tx Compra · Lucro
+   rows: [{date,spend,rev,sales,impr,clicks,lpv,checkout}] · obByDay: {date: R$ OB do dia} */
+var STD_DAILY_COLS=14;
+function stdDailyCells(r,ob,maxS,medCac){
+  var roas=dv(r.rev,r.spend), roasob=dv(r.rev+(ob||0),r.spend), cac=(r.sales>0&&r.spend>0)?dv(r.spend,r.sales):null, lucro=r.rev-r.spend;
+  return '<td class="num"><span class="heatcell" style="'+heatBg('91,157,255',(maxS>0?r.spend/maxS:0))+'">'+money0(r.spend)+'</span></td>'
+    +'<td class="num">'+money0(r.rev)+'</td>'
+    +'<td class="num">'+(r.spend>0?'<span class="roas-pill '+roasClass(roas)+'">'+roasf(roas)+'</span>':'—')+'</td>'
+    +'<td class="num">'+(r.spend>0?'<span class="roas-pill '+roasClass(roasob)+'">'+roasf(roasob)+'</span>':'—')+'</td>'
+    +'<td class="num">'+intf(r.sales)+'</td>'
+    +'<td class="num">'+(cac!=null?'<span class="cac-pill '+cacClass(cac,medCac)+'">'+money0(cac)+'</span>':'—')+'</td>'
+    +'<td class="num">'+((r.impr||0)>0?money0(dv(r.spend,r.impr)*1000):'—')+'</td>'
+    +'<td class="num">'+((r.impr||0)>0?pct(dv(r.clicks,r.impr)*100):'—')+'</td>'
+    +'<td class="num">'+(((r.lpv||0)>0&&(r.clicks||0)>0)?pct(dv(r.lpv,r.clicks)*100):'—')+'</td>'
+    +'<td class="num">'+((r.clicks||0)>0?pct(dv(r.sales,r.clicks)*100):'—')+'</td>'
+    +'<td class="num">'+((r.lpv||0)>0?pct(dv(r.checkout,r.lpv)*100):'—')+'</td>'
+    +'<td class="num">'+((r.checkout||0)>0?pct(dv(r.sales,r.checkout)*100):'—')+'</td>'
+    +'<td class="num '+(lucro>=0?'pos':'neg')+'">'+money0(lucro)+'</td>';
+}
+function stdDaily(rows,obByDay,outId){
+  if(!el(outId)) return;
+  obByDay=obByDay||{};
+  rows=rows.slice().sort(function(a,b){return b.date.localeCompare(a.date);});
   var maxS=Math.max.apply(null,rows.map(function(r){return r.spend||0;}).concat([1]));
-  var medCac=median(rows.map(function(r){return r.sales>0?dv(r.spend,r.sales):null;}));
-  var chkH=chk?'<th>Tx Chk</th><th>Tx Compra</th>':'';
-  var head='<thead><tr><th>Dia</th><th>Investimento</th><th>Vendas</th><th>CAC</th><th>Conv. pág.</th>'+chkH+'<th>Faturamento</th><th>ROAS</th><th>ROAS c/OB</th><th>Lucro</th></tr></thead>';
-  var body=rows.map(function(r){ var roas=dv(r.rev,r.spend), cac=r.sales>0?dv(r.spend,r.sales):null, lucro=r.rev-r.spend;
-    var dob=(ob.byDay[r.date]||{r:0}).r||0, roasob=dv(r.rev+dob,r.spend);
-    var chkC=chk?('<td class="num">'+(r.lpv>0?pct(dv(r.checkout,r.lpv)*100):'—')+'</td><td class="num">'+(r.checkout>0?pct(dv(r.sales,r.checkout)*100):'—')+'</td>'):'';
-    return '<tr><td>'+fmtBR(r.date)+'</td>'
-      +'<td class="num"><span class="heatcell" style="'+heatBg('91,157,255',r.spend/maxS)+'">'+money0(r.spend)+'</span></td>'
-      +'<td class="num">'+intf(r.sales)+'</td>'
-      +'<td class="num">'+(cac!=null?'<span class="cac-pill '+cacClass(cac,medCac)+'">'+money0(cac)+'</span>':'—')+'</td>'
-      +'<td class="num">'+(r.clicks>0?pct(dv(r.sales,r.clicks)*100):'—')+'</td>'
-      +chkC
-      +'<td class="num">'+money0(r.rev)+'</td>'
-      +'<td class="num">'+(r.spend>0?'<span class="roas-pill '+roasClass(roas)+'">'+roasf(roas)+'</span>':'—')+'</td>'
-      +'<td class="num">'+(r.spend>0?'<span class="roas-pill '+roasClass(roasob)+'">'+roasf(roasob)+'</span>':'—')+'</td>'
-      +'<td class="num '+(lucro>=0?'pos':'neg')+'">'+money0(lucro)+'</td></tr>'; }).join('');
-  if(!rows.length) body='<tr><td colspan="'+(chk?11:9)+'" class="empty">Sem dados no período.</td></tr>';
-  var a=aggDaily(cfg.S,rng), tr=dv(a.rev,a.spend), trob=dv(a.rev+ob.rev,a.spend), tl=a.rev-a.spend, tc=a.sales>0?dv(a.spend,a.sales):null;
-  var chkF=chk?('<td class="num">'+(a.lpv>0?pct(dv(a.checkout,a.lpv)*100):'—')+'</td><td class="num">'+(a.checkout>0?pct(dv(a.sales,a.checkout)*100):'—')+'</td>'):'';
-  var foot='<tfoot><tr><td>Total</td><td class="num">'+money0(a.spend)+'</td><td class="num">'+intf(a.sales)+'</td><td class="num">'+(tc!=null?money0(tc):'—')+'</td><td class="num">'+(a.clicks>0?pct(dv(a.sales,a.clicks)*100):'—')+'</td>'+chkF+'<td class="num">'+money0(a.rev)+'</td><td class="num">'+(a.spend>0?roasf(tr):'—')+'</td><td class="num">'+(a.spend>0?roasf(trob):'—')+'</td><td class="num '+(tl>=0?'pos':'neg')+'">'+money0(tl)+'</td></tr></tfoot>';
-  el(outId||(cfg.pfx+'-daily')).innerHTML=head+'<tbody>'+body+'</tbody>'+foot;
+  var medCac=median(rows.map(function(r){return (r.sales>0&&r.spend>0)?dv(r.spend,r.sales):null;}).filter(function(x){return x!=null;}));
+  var head='<thead><tr><th>Dia</th><th>Investimento</th><th>Faturamento</th><th>ROAS</th><th>ROAS c/OB</th><th>Vendas</th><th>CAC</th><th>CPM</th><th>CTR</th><th>Connect</th><th>Conv. pág.</th><th>Tx Chk</th><th>Tx Compra</th><th>Lucro</th></tr></thead>';
+  var body=rows.map(function(r){ return '<tr><td>'+fmtBR(r.date)+'</td>'+stdDailyCells(r,obByDay[r.date]||0,maxS,medCac)+'</tr>'; }).join('');
+  if(!rows.length) body='<tr><td colspan="'+STD_DAILY_COLS+'" class="empty">Sem dados no período.</td></tr>';
+  var t={date:'',spend:0,rev:0,sales:0,impr:0,clicks:0,lpv:0,checkout:0}, tob=0;
+  rows.forEach(function(r){ t.spend+=r.spend||0;t.rev+=r.rev||0;t.sales+=r.sales||0;t.impr+=r.impr||0;t.clicks+=r.clicks||0;t.lpv+=r.lpv||0;t.checkout+=r.checkout||0;tob+=(obByDay[r.date]||0); });
+  var foot='<tfoot><tr><td>Total</td>'+stdDailyCells(t,tob,0,0)+'</tr></tfoot>';
+  el(outId).innerHTML=head+'<tbody>'+body+'</tbody>'+foot;
+}
+// OB por dia -> {date: R$} a partir de obAggFor(...).byDay
+function obByDayMap(ob){ var m={}; Object.keys(ob.byDay||{}).forEach(function(k){ m[k]=(ob.byDay[k]||{r:0}).r||0; }); return m; }
+function renderDaily(cfg,rng,outId){
+  stdDaily(daysInRange(cfg.S,rng), obByDayMap(obAggFor(rng, cfg.pfx==='m'?'m':'g')), outId||(cfg.pfx+'-daily'));
 }
 
 /* =================== OTIMIZAÇÃO (árvore) =================== */
@@ -387,7 +399,7 @@ function renderInsights(cfg,rng){
 /* =================== GERAL =================== */
 function combineDaily(rng){
   var m={};
-  [META,GOOG].forEach(function(S){ S.daily.forEach(function(d){ if(!isDate(d.date)||!inRange(d.date,rng))return; var o=m[d.date]||(m[d.date]={date:d.date,spend:0,spendRaw:0,sales:0,rev:0}); o.spend+=d.spend||0;o.spendRaw+=d.spendRaw||0;o.sales+=d.sales||0;o.rev+=d.rev||0; }); });
+  [META,GOOG].forEach(function(S){ S.daily.forEach(function(d){ if(!isDate(d.date)||!inRange(d.date,rng))return; var o=m[d.date]||(m[d.date]={date:d.date,spend:0,spendRaw:0,sales:0,rev:0,impr:0,clicks:0,lpv:0,checkout:0}); o.spend+=d.spend||0;o.spendRaw+=d.spendRaw||0;o.sales+=d.sales||0;o.rev+=d.rev||0;o.impr+=d.impr||0;o.clicks+=d.clicks||0;o.lpv+=d.lpv||0;o.checkout+=d.checkout||0; }); });
   return Object.keys(m).map(function(k){return m[k];}).sort(function(a,b){return a.date.localeCompare(b.date);});
 }
 function qcard(cls,lab,val,sub){ return '<div class="qcard'+(cls?' '+cls:'')+'"><div class="q-l">'+lab+'</div><div class="q-v">'+val+'</div>'+(sub?'<div class="q-s">'+sub+'</div>':'')+'</div>'; }
@@ -518,23 +530,8 @@ function renderGeral(rng){
   // ----- seção Order Bumps (Meta + Google) -----
   renderOBcard('', ob, sales, rev, spend);
 
-  // ----- daily combinado c/ order bump -----
-  var rows=combineDaily(rng).slice().sort(function(a,b){return b.date.localeCompare(a.date);});
-  var maxS=Math.max.apply(null,rows.map(function(r){return r.spend||0;}).concat([1]));
-  var head='<thead><tr><th>Dia</th><th>Investimento</th><th>Vendas</th><th>Fat. MPI</th><th>Fat. OB</th><th>Fat. Total</th><th>ROAS c/ OB</th><th>Lucro c/ OB</th></tr></thead>';
-  var body=rows.map(function(r){ var od=ob.byDay[r.date]||{s:0,r:0}, ft=r.rev+od.r, rz=dv(ft,r.spend), lu=ft-r.spend;
-    return '<tr><td>'+fmtBR(r.date)+'</td><td class="num"><span class="heatcell" style="'+heatBg('35,194,134',r.spend/maxS)+'">'+money0(r.spend)+'</span></td>'
-      +'<td class="num">'+intf(r.sales)+'</td><td class="num">'+money0(r.rev)+'</td>'
-      +'<td class="num'+(od.r>0?' obcell':'')+'">'+(od.r>0?money0(od.r):'—')+'</td>'
-      +'<td class="num">'+money0(ft)+'</td>'
-      +'<td class="num">'+(r.spend>0?'<span class="roas-pill '+roasClass(rz)+'">'+roasf(rz)+'</span>':'—')+'</td>'
-      +'<td class="num '+(lu>=0?'pos':'neg')+'">'+money0(lu)+'</td></tr>'; }).join('');
-  if(!rows.length)body='<tr><td colspan="8" class="empty">Sem dados no período.</td></tr>';
-  var fRoas=dv(fatTotal,spend);
-  var foot='<tfoot><tr><td>Total</td><td class="num">'+money0(spend)+'</td><td class="num">'+intf(sales)+'</td><td class="num">'+money0(rev)+'</td><td class="num">'+money0(ob.rev)+'</td><td class="num">'+money0(fatTotal)+'</td><td class="num">'+(spend>0?roasf(fRoas):'—')+'</td><td class="num '+(lucroOB>=0?'pos':'neg')+'">'+money0(lucroOB)+'</td></tr></tfoot>';
-  el('geralDaily').innerHTML=head+'<tbody>'+body+'</tbody>'+foot;
-  // MPD: Visão Diária com conversões (Tx Chk = checkout/LPV, Tx Compra = venda/checkout) — Meta-only
-  if(curFunnel==='mpd' && el('mpdDaily')) renderDaily(CFG.meta, rng, 'mpdDaily');
+  // ----- Visão Diária PADRÃO (Meta+Google combinados · 14 colunas) -----
+  stdDaily(combineDaily(rng), obByDayMap(ob), 'geralDaily');
 }
 
 /* =================== HISTÓRICO POR DIA DA SEMANA =================== */
@@ -961,6 +958,11 @@ function mountV2(){
   var adG=v2groupBy(adRows,2);
   v2Table('v2TAd','Anúncios', v2Sel.adset!=null?'do conjunto selecionado':(v2Sel.camp!=null?'da campanha selecionada':'todos'), adG, 2);
   v2Lines(adG,'v2LinesAd',2,function(g){ v2Pick(2,g); });
+  // Visão Diária padronizada (reage ao canal + item selecionado; OB alocado ∝ vendas, igual à árvore V2)
+  var vdMap={}; scope.forEach(function(r){ var o=vdMap[r.date]||(vdMap[r.date]={date:r.date,spend:0,rev:0,sales:0,impr:0,clicks:0,lpv:0,checkout:0}); o.spend+=r.spend;o.rev+=r.rev;o.sales+=r.sales;o.impr+=r.impr;o.clicks+=r.clicks;o.lpv+=r.lpv;o.checkout+=r.checkout; });
+  var vdArr=Object.keys(vdMap).map(function(k){return vdMap[k];}), vdOB={};
+  vdArr.forEach(function(r){ vdOB[r.date]=(r.sales||0)*v2OBps; });
+  stdDaily(vdArr, vdOB, 'v2DailyTbl');
 }
 
 /* =================== ORQUESTRAÇÃO =================== */
@@ -1000,10 +1002,6 @@ function applyFunnelTabs(){
   var allowed=FUNNEL_TABS[curFunnel]||FUNNEL_TABS.mpi;
   Array.prototype.forEach.call(document.querySelectorAll('.tab'),function(t){ t.style.display=(allowed.indexOf(t.getAttribute('data-tab'))>=0)?'':'none'; });
   var gc=el('goalCard'); if(gc) gc.style.display=(curFunnel==='mpi')?'':'none';
-  // MPD mostra a Visão Diária com conversões (Tx Chk/Tx Compra); MPI mantém a diária OB-focada
-  var isMpd=(curFunnel==='mpd');
-  var gd=el('geralDailyCard'); if(gd) gd.style.display=isMpd?'none':'';
-  var md=el('mpdDailyCard'); if(md) md.style.display=isMpd?'':'none';
   var eb=el('editband'); if(eb) eb.textContent=(curFunnel==='mpi')?'Funil de Venda Direta · Produto MPI · Meta & Google Ads':'Funil de Venda Direta · Funil MPD · Meta Ads (Google em breve)';
 }
 function initTabs(){ Array.prototype.forEach.call(document.querySelectorAll('.tab'),function(t){ t.addEventListener('click',function(){ var id=t.getAttribute('data-tab'); activateTab(id); if(history.replaceState)history.replaceState(null,'','#'+id); }); });
