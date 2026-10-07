@@ -14,6 +14,8 @@ var nf1 = new Intl.NumberFormat('pt-BR',{minimumFractionDigits:1,maximumFraction
 var nf2 = new Intl.NumberFormat('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 var money = function(v){ return 'R$ ' + nf2.format(v||0); };
 var money0 = function(v){ return 'R$ ' + nf0.format(Math.round(v||0)); };
+// gasto EXATO: mostra centavos p/ valores baixos (0<v<10) p/ criativo de pouco gasto não virar "R$ 0"
+var moneyExato = function(v){ v=+v||0; return (v>0 && v<10) ? ('R$ ' + nf2.format(v)) : money0(v); };
 var intf = function(v){ return nf0.format(Math.round(v||0)); };
 var pct = function(v){ return nf1.format(v||0) + '%'; };
 var roasf = function(v){ return nf2.format(v||0); };
@@ -212,7 +214,7 @@ function renderChartRoas(cfg,days){
   xticks(days).forEach(function(i){ var xc=pl+gw*i+gw/2; s+='<text x="'+xc.toFixed(1)+'" y="'+(H-6)+'" text-anchor="middle" fill="#587567" font-size="9">'+fmtBR(days[i].date)+'</text>'; });
   s+=hitRects(days,pl,gw,pt,ph)+'</svg>';
   el(cfg.pfx+'-chartRoas').innerHTML='<div class="chart">'+s+'</div><div class="chart-legend"><span><span class="dot" style="background:rgba(91,157,255,.6)"></span>Investimento</span><span><span class="ln" style="background:'+COL.gold+'"></span>ROAS</span><span style="color:var(--muted2)">tracejado = break-even</span></div>';
-  bindHits(cfg.pfx+'-chartRoas',days,function(d){ return '<div class="tt-d">'+fmtBR(d.date)+'</div><div class="tt-r"><span style="color:'+COL.meta+'">Investimento</span><b>'+money0(d.spend)+'</b></div><div class="tt-r"><span style="color:'+COL.gold2+'">ROAS</span><b>'+roasf(dv(d.rev,d.spend))+'</b></div><div class="tt-sub">Vendas '+intf(d.sales)+' · Fat. '+money0(d.rev)+'</div>'; });
+  bindHits(cfg.pfx+'-chartRoas',days,function(d){ return '<div class="tt-d">'+fmtBR(d.date)+'</div><div class="tt-r"><span style="color:'+COL.meta+'">Investimento</span><b>'+moneyExato(d.spend)+'</b></div><div class="tt-r"><span style="color:'+COL.gold2+'">ROAS</span><b>'+roasf(dv(d.rev,d.spend))+'</b></div><div class="tt-sub">Vendas '+intf(d.sales)+' · Fat. '+money0(d.rev)+'</div>'; });
 }
 
 /* =================== DAILY TABLE =================== */
@@ -223,7 +225,7 @@ function heatBg(rgb,frac){ return 'background:rgba('+rgb+','+(0.10+0.42*clamp(fr
 var STD_DAILY_COLS=14;
 function stdDailyCells(r,ob,maxS,medCac){
   var roas=dv(r.rev,r.spend), roasob=dv(r.rev+(ob||0),r.spend), cac=(r.sales>0&&r.spend>0)?dv(r.spend,r.sales):null, lucro=r.rev-r.spend;
-  return '<td class="num"><span class="heatcell" style="'+heatBg('91,157,255',(maxS>0?r.spend/maxS:0))+'">'+money0(r.spend)+'</span></td>'
+  return '<td class="num"><span class="heatcell" style="'+heatBg('91,157,255',(maxS>0?r.spend/maxS:0))+'">'+moneyExato(r.spend)+'</span></td>'
     +'<td class="num">'+money0(r.rev)+'</td>'
     +'<td class="num">'+(r.spend>0?'<span class="roas-pill '+roasClass(roas)+'">'+roasf(roas)+'</span>':'—')+'</td>'
     +'<td class="num">'+(r.spend>0?'<span class="roas-pill '+roasClass(roasob)+'">'+roasf(roasob)+'</span>':'—')+'</td>'
@@ -279,7 +281,7 @@ function actTag(n,medRoas){
 // coluna -> HTML da celula (data-driven; VSL: txchk=Checkout/LPV, txcpr=Vendas/Checkout)
 function cellHTML(key,n,medR,medC){
   switch(key){
-    case 'spend': return money0(n.spend);
+    case 'spend': return moneyExato(n.spend);
     case 'cpm':   return n.impr>0?money(dv(n.spend,n.impr)*1000):'—';
     case 'ctr':   return n.impr>0?pct(dv(n.clicks,n.impr)*100):'—';
     case 'cpc':   return n.clicks>0?money(dv(n.spend,n.clicks)):'—';
@@ -762,7 +764,7 @@ function renderMicro(rng){
     +microTile('Vendas',intf(seriesAgg(series,'sales')),trendPct(series,'sales'),'high')
     +microTile('ROAS',roasf(seriesAgg(series,'roas')),rp,'high');
   el('microChart').innerHTML=microChart(series);
-  bindHits('microChart',series,function(b){ return '<div class="tt-d">'+b.label+'</div><div class="tt-r"><span style="color:'+COL.meta+'">Investimento</span><b>'+money0(b.spend)+'</b></div><div class="tt-r"><span style="color:'+COL.grn2+'">Faturamento</span><b>'+money0(b.rev)+'</b></div><div class="tt-sub">Vendas '+intf(b.sales)+' · ROAS '+roasf(dv(b.rev,b.spend))+'</div>'; });
+  bindHits('microChart',series,function(b){ return '<div class="tt-d">'+b.label+'</div><div class="tt-r"><span style="color:'+COL.meta+'">Investimento</span><b>'+moneyExato(b.spend)+'</b></div><div class="tt-r"><span style="color:'+COL.grn2+'">Faturamento</span><b>'+money0(b.rev)+'</b></div><div class="tt-sub">Vendas '+intf(b.sales)+' · ROAS '+roasf(dv(b.rev,b.spend))+'</div>'; });
   var mt=el('microTree');
   Array.prototype.forEach.call(mt.querySelectorAll('tbody tr'),function(tr){ tr.addEventListener('click',function(e){
     var lvl=+tr.getAttribute('data-lvl'); if(isNaN(lvl))return; var key=tr.getAttribute('data-key');
@@ -870,11 +872,11 @@ function v2Lines(groups,elId,level,onPick){
   Array.prototype.forEach.call(el(elId).querySelectorAll('.v2leg'),function(sp){ sp.addEventListener('click',function(){ var g=byKey[decodeURIComponent(sp.getAttribute('data-key'))]; if(g) onPick(g); }); });
   Array.prototype.forEach.call(el(elId).querySelectorAll('.v2hit'),function(r){
     r.addEventListener('mousemove',function(e){ var i=+r.getAttribute('data-i'), dt=dates[i];
-      var items=[]; top.forEach(function(g,gi){ var d=g.map[dt]; if(d&&d.spend>0) items.push({nm:g.name,val:v2LineVal(d),roas:d.rev/d.spend,sales:d.sales,rev:d.rev,col:V2PAL[gi%V2PAL.length]}); });
+      var items=[]; top.forEach(function(g,gi){ var d=g.map[dt]; if(d&&d.spend>0) items.push({nm:g.name,val:v2LineVal(d),spend:d.spend,roas:d.rev/d.spend,sales:d.sales,rev:d.rev,col:V2PAL[gi%V2PAL.length]}); });
       items.sort(function(a,b){return (b.val==null?-1:b.val)-(a.val==null?-1:a.val);});
       var html='<div class="tt-d">'+fmtBR(dt)+' · '+v2MetricLabel()+'</div>';
       if(!items.length){ html+='<div class="tt-sub">sem gasto nesse dia</div>'; }
-      else items.forEach(function(it){ var nm=it.nm.length>26?it.nm.slice(0,24)+'…':it.nm; html+='<div class="tt-r"><span style="color:'+it.col+'">'+esc(nm)+'</span><b>'+v2LineFmt(it.val)+'</b></div><div class="tt-mini">ROAS '+roasf(it.roas)+' · '+intf(it.sales)+' vd · '+money0(it.rev)+'</div>'; });
+      else items.forEach(function(it){ var nm=it.nm.length>26?it.nm.slice(0,24)+'…':it.nm; html+='<div class="tt-r"><span style="color:'+it.col+'">'+esc(nm)+'</span><b>'+v2LineFmt(it.val)+'</b></div><div class="tt-mini">gasto '+moneyExato(it.spend)+' · ROAS '+roasf(it.roas)+' · '+intf(it.sales)+' vd · fat '+money0(it.rev)+'</div>'; });
       tipShow(html,e.clientX,e.clientY); });
     r.addEventListener('mouseleave',tipHide); });
 }
@@ -891,7 +893,7 @@ function v2Table(elId,title,hint,list,level){
     var roasobCell=m.roasob!=null?'<span class="roas-pill '+roasClass(m.roasob)+'">'+roasf(m.roasob)+'</span>':'—';
     return '<tr class="v2row'+(sel?' sel':'')+'" data-key="'+encodeURIComponent(o.key)+'">'
       +'<td><span class="v2name" title="'+esc(o.name)+'">'+(sel?'● ':'')+esc(o.name)+'</span></td>'
-      +'<td class="num">'+money0(o.spend)+'</td>'
+      +'<td class="num">'+moneyExato(o.spend)+'</td>'
       +'<td class="num">'+intf(o.impr)+'</td>'
       +'<td class="num">'+(m.cpm!=null?money0(m.cpm):'—')+'</td>'
       +'<td class="num">'+intf(o.clicks)+'</td>'
@@ -944,7 +946,7 @@ function mountV2(){
   el('v2Kpi').innerHTML=v2Kpis(v2Metrics(agg));
   var days=v2DaySeries(scope);   // inclui o dia de hoje (pedido do usuário)
   if(days.length){ el('v2Daily').innerHTML=microChart(days);
-    bindHits('v2Daily',days,function(b){ return '<div class="tt-d">'+b.label+'</div><div class="tt-r"><span style="color:'+COL.meta+'">Investimento</span><b>'+money0(b.spend)+'</b></div><div class="tt-r"><span style="color:'+COL.grn2+'">Faturamento</span><b>'+money0(b.rev)+'</b></div><div class="tt-sub">Vendas '+intf(b.sales)+' · ROAS '+roasf(dv(b.rev,b.spend))+'</div>'; }); }
+    bindHits('v2Daily',days,function(b){ return '<div class="tt-d">'+b.label+'</div><div class="tt-r"><span style="color:'+COL.meta+'">Investimento</span><b>'+moneyExato(b.spend)+'</b></div><div class="tt-r"><span style="color:'+COL.grn2+'">Faturamento</span><b>'+money0(b.rev)+'</b></div><div class="tt-sub">Vendas '+intf(b.sales)+' · ROAS '+roasf(dv(b.rev,b.spend))+'</div>'; }); }
   else el('v2Daily').innerHTML='<div class="empty">Sem dados no período.</div>';
   // cada nível: TABELA (lista SEMPRE completa) + gráfico ROAS/dia logo abaixo
   var campG=v2groupBy(base,0);
