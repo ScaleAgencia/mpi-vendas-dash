@@ -38,8 +38,8 @@ function prep(S){
   return S;
 }
 var META, GOOG, OB, minDate, maxDate;   // reatribuídos por applyFunnel()
-var OB_LABELS={combo3:'Combo 3 em 1',exterior:'Investimentos no Exterior',cripto:'Criptomoedas',planilhas:'Planilhas complementares MPI'};
-var OB_ORDER=['combo3','exterior','cripto','planilhas'];
+var OB_LABELS={combo3:'Combo 3 em 1',exterior:'Investimentos no Exterior',cripto:'Criptomoedas',planilhas:'Planilhas complementares MPI',lastro:'Lastro (upsell)'};
+var OB_ORDER=['combo3','exterior','cripto','planilhas','lastro'];
 
 /* ---------- período global ---------- */
 function boundsOf(){
@@ -133,7 +133,7 @@ function renderKpi(cfg,a,p,ob){
     subLucro + subRow('Ticket médio', a.sales?money(ticket):'—', trendHTML(ticket,dv(p.rev,p.sales),true)));
   cards+=kpiCard('gold','Faturamento Total',money0(fatTotal),
     subRow('Só MPI', money0(a.rev),'')
-    + subRow('Order bump', '<b style="color:var(--gold2)">'+money0(ob.rev)+'</b>','')
+    + subRow('OB + upsell', '<b style="color:var(--gold2)">'+money0(ob.rev)+'</b>','')
     + subRow('ROAS c/ OB', '<b>'+roasf(roasOB)+'</b>',''));
   cards+=kpiCard('hl','Vendas',intf(a.sales),
     subRow('CAC', a.sales?money(cac):'—', trendHTML(cac,dv(p.spend,p.sales),false))
@@ -428,10 +428,10 @@ function obPerSaleFor(rng,srcFilter){
 function renderOBcard(pfx,ob,mpiSales,mpiRev,spend){
   var convOB=dv(ob.sales,mpiSales), roasBase=dv(mpiRev,spend), fatTotal=mpiRev+ob.rev, roasOB=dv(fatTotal,spend);
   el(pfx+'obStats').innerHTML=
-    obTile(false,'Vendas Order Bump',intf(ob.sales),'de '+intf(mpiSales)+' vendas MPI')
-    +obTile(false,'Faturamento OB',money0(ob.rev),'líquido, no período')
-    +obTile(false,'Conv. OB',pct(convOB*100),'take rate (OB ÷ MPI)')
-    +obTile(true,'Faturamento Total',money0(fatTotal),'MPI + order bump')
+    obTile(false,'Vendas extra',intf(ob.sales),'OB + upsell · de '+intf(mpiSales)+' vendas MPI')
+    +obTile(false,'Faturamento extra',money0(ob.rev),'OB + upsell · líquido, no período')
+    +obTile(false,'Conv. extra',pct(convOB*100),'take rate (extra ÷ MPI)')
+    +obTile(true,'Faturamento Total',money0(fatTotal),'MPI + OB/upsell')
     +obTile(true,'ROAS c/ OB',roasf(roasOB),(roasOB>=1?'✓ no lucro':'sobe de '+roasf(roasBase)));
   var maxObR=Math.max.apply(null,OB_ORDER.map(function(k){return ob.by[k]?ob.by[k].r:0;}).concat([1]));
   var totObR=ob.rev||1;
@@ -439,7 +439,7 @@ function renderOBcard(pfx,ob,mpiSales,mpiRev,spend){
     return '<div class="obrow"><div class="obrow-top"><span class="obl">'+esc(OB_LABELS[k])+'</span>'
       +'<span class="obn">'+intf(b.s)+' vendas · <b>'+money0(b.r)+'</b> · '+pct(dv(b.r,totObR)*100)+'</span></div>'
       +'<div class="obtrack"><span style="width:'+w.toFixed(1)+'%"></span></div></div>'; }).join('')
-    +'<div class="ob-foot">Order bump = produto levado junto no checkout do MPI. Faturamento líquido; ROAS c/ OB = (faturamento MPI + OB) ÷ investimento'+(pfx==='g-'?'':' c/ imposto')+'.</div>';
+    +'<div class="ob-foot">Order bump = produto levado no checkout do MPI; upsell = oferta pós-compra (ex.: Lastro). Faturamento líquido; ROAS c/ OB = (faturamento MPI + extra) ÷ investimento'+(pfx==='g-'?'':' c/ imposto')+'.</div>';
 }
 /* =================== META DE INVESTIMENTO (mensal, R$ 250k) =================== */
 var INVEST_GOAL=250000;   // meta de investimento gerenciador por mes

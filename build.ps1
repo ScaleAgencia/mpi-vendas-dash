@@ -82,6 +82,7 @@ function ObKey($prod){ $p=Deaccent $prod
   if($p -eq 'investimentos no exterior'){ return 'exterior' }
   if($p -eq 'combo 3 em 1'){ return 'combo3' }
   if($p -eq 'criptomoedas'){ return 'cripto' }
+  if($p -eq 'lastro'){ return 'lastro' }   # upsell (post-venda); entra no faturamento extra junto com os OB
   return '' }
 
 $metaSales = New-Object System.Collections.Generic.List[object]
