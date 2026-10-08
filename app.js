@@ -796,6 +796,7 @@ function v2RangeFor(k){ if(k==='7d')return [addDays(maxDate,-6),maxDate]; if(k==
 function v2Metrics(n){ return {
   spend:n.spend,impr:n.impr,clicks:n.clicks,lpv:n.lpv,checkout:n.checkout,sales:n.sales,rev:n.rev,
   cpm:n.impr>0?n.spend/n.impr*1000:null, ctr:n.impr>0?n.clicks/n.impr*100:null, cpc:n.clicks>0?n.spend/n.clicks:null,
+  connect:(n.lpv>0&&n.clicks>0)?n.lpv/n.clicks*100:null,
   txchk:n.lpv>0?n.checkout/n.lpv*100:null, txcpr:n.checkout>0?n.sales/n.checkout*100:null,
   convPag:n.clicks>0?n.sales/n.clicks*100:null, cac:(n.sales>0&&n.spend>0)?n.spend/n.sales:null, ticket:n.sales>0?n.rev/n.sales:null,
   roas:n.spend>0?n.rev/n.spend:null, roasob:n.spend>0?(n.rev+(n.sales||0)*v2OBps)/n.spend:null }; }
@@ -819,8 +820,8 @@ function v2Kpis(m){
     +'<div class="h-val">'+money(m.spend)+'</div>'
     +'<div class="h-foot"><span>ROAS <b>'+(m.roas!=null?roasf(m.roas):'—')+'</b></span><span>Vendas <b>'+intf(m.sales)+'</b></span></div></div>';
   var cards='';
-  cards+=kpiCard('','Impressões',intf(m.impr), subRow('CPM',(m.cpm!=null?money(m.cpm):'—'),'')+subRow('CTR',(m.ctr!=null?pct(m.ctr):'—'),''));
-  cards+=kpiCard('','Cliques',intf(m.clicks), subRow('CPC',(m.cpc!=null?money(m.cpc):'—'),'')+subRow('Conv. página <small>(clique→venda)</small>',(m.convPag!=null?pct(m.convPag):'—'),''));
+  cards+=kpiCard('','CPM',(m.cpm!=null?money(m.cpm):'—'), subRow('CTR',(m.ctr!=null?pct(m.ctr):'—'),'')+subRow('CPC',(m.cpc!=null?money(m.cpc):'—'),''));
+  cards+=kpiCard('','Conv. página <small>(clique→venda)</small>',(m.convPag!=null?pct(m.convPag):'—'), subRow('Connect <small>(LPV/clique)</small>',(m.connect!=null?pct(m.connect):'—'),'')+subRow('Tx checkout <small>(LPV→chk)</small>',(m.txchk!=null?pct(m.txchk):'—'),''));
   cards+=kpiCard('hl','Faturamento',money0(m.rev), subRow('Ticket médio',(m.ticket!=null?money(m.ticket):'—'),'')+subRow('Lucro (fat.−invest.)','<span class="'+(lucro>=0?'pos':'neg')+'">'+money0(lucro)+'</span>',''));
   cards+=kpiCard('hl','Vendas',intf(m.sales), subRow('<b>CAC</b>',(m.cac!=null?money(m.cac):'—'),'')+subRow('Checkout→venda <small>(Meta)</small>',(m.txcpr!=null?pct(m.txcpr):'—'),''));
   var barw=clamp((m.roas||0)/1.5)*100, barcol=(m.roas>=1)?COL.grn:((m.roas>=0.8)?COL.gold:'#f2637e');
@@ -886,25 +887,26 @@ function v2Table(elId,title,hint,list,level){
   var shown=list.slice(0,80);
   var medC=median(shown.map(function(o){return o.sales>0?o.spend/o.sales:null;}).filter(function(x){return x!=null;}));
   var lvlLab=['Campanha','Conjunto / Grupo','Anúncio'][level];
-  var head='<thead><tr><th>'+lvlLab+'</th><th class="num">Gasto</th><th class="num">Impr.</th><th class="num">CPM</th><th class="num">Cliques</th><th class="num">CTR</th><th class="num">CPC</th><th class="num">Conv. pág.</th><th class="num">Vendas</th><th class="num">CAC</th><th class="num">Faturamento</th><th class="num">ROAS</th><th class="num">ROAS c/OB</th></tr></thead>';
-  var body=shown.map(function(o){ var m=v2Metrics(o), sel=v2SelOf(o,level);
+  var head='<thead><tr><th>'+lvlLab+'</th><th class="num">Gasto</th><th class="num">Faturamento</th><th class="num">ROAS</th><th class="num">ROAS c/OB</th><th class="num">Vendas</th><th class="num">CAC</th><th class="num">CPM</th><th class="num">CTR</th><th class="num">Connect</th><th class="num">Conv. pág.</th><th class="num">Tx Chk</th><th class="num">Tx Compra</th><th class="num">Lucro</th></tr></thead>';
+  var body=shown.map(function(o){ var m=v2Metrics(o), sel=v2SelOf(o,level), lucro=o.rev-o.spend;
     var cacCell=m.cac!=null?'<span class="cac-pill '+cacClass(m.cac,medC)+'">'+money0(m.cac)+'</span>':'—';
     var roasCell=m.roas!=null?'<span class="roas-pill '+roasClass(m.roas)+'">'+roasf(m.roas)+'</span>':'—';
     var roasobCell=m.roasob!=null?'<span class="roas-pill '+roasClass(m.roasob)+'">'+roasf(m.roasob)+'</span>':'—';
     return '<tr class="v2row'+(sel?' sel':'')+'" data-key="'+encodeURIComponent(o.key)+'">'
       +'<td><span class="v2name" title="'+esc(o.name)+'">'+(sel?'● ':'')+esc(o.name)+'</span></td>'
       +'<td class="num">'+moneyExato(o.spend)+'</td>'
-      +'<td class="num">'+intf(o.impr)+'</td>'
-      +'<td class="num">'+(m.cpm!=null?money0(m.cpm):'—')+'</td>'
-      +'<td class="num">'+intf(o.clicks)+'</td>'
-      +'<td class="num">'+(m.ctr!=null?pct(m.ctr):'—')+'</td>'
-      +'<td class="num">'+(m.cpc!=null?money(m.cpc):'—')+'</td>'
-      +'<td class="num">'+(m.convPag!=null?pct(m.convPag):'—')+'</td>'
-      +'<td class="num">'+intf(o.sales)+'</td>'
-      +'<td class="num">'+cacCell+'</td>'
       +'<td class="num">'+money0(o.rev)+'</td>'
       +'<td class="num">'+roasCell+'</td>'
-      +'<td class="num">'+roasobCell+'</td></tr>'; }).join('');
+      +'<td class="num">'+roasobCell+'</td>'
+      +'<td class="num">'+intf(o.sales)+'</td>'
+      +'<td class="num">'+cacCell+'</td>'
+      +'<td class="num">'+(m.cpm!=null?money0(m.cpm):'—')+'</td>'
+      +'<td class="num">'+(m.ctr!=null?pct(m.ctr):'—')+'</td>'
+      +'<td class="num">'+(m.connect!=null?pct(m.connect):'—')+'</td>'
+      +'<td class="num">'+(m.convPag!=null?pct(m.convPag):'—')+'</td>'
+      +'<td class="num">'+(m.txchk!=null?pct(m.txchk):'—')+'</td>'
+      +'<td class="num">'+(m.txcpr!=null?pct(m.txcpr):'—')+'</td>'
+      +'<td class="num '+(lucro>=0?'pos':'neg')+'">'+money0(lucro)+'</td></tr>'; }).join('');
   var more = list.length>shown.length ? ' <span class="hint">· top '+shown.length+' de '+list.length+' por gasto</span>' : '';
   el(elId).innerHTML='<div class="card"><div class="card-h">'+title+' <span class="hint">'+hint+'</span>'+more+'</div><div class="table-scroll"><table class="tbl v2tbl">'+head+'<tbody>'+body+'</tbody></table></div></div>';
   var byKey={}; shown.forEach(function(o){ byKey[o.key]=o; });
