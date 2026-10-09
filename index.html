@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@1,500;1,600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?t=20261008v13">
+<link rel="stylesheet" href="styles.css?t=20261009v14">
 </head>
 <body>
 <div class="wrap">
@@ -67,6 +67,13 @@
         <div class="ob-break-h">Faturamento por item extra</div>
         <div id="obBreak"></div>
       </div>
+    </div>
+
+    <div class="card ob-card">
+      <div class="card-h">📈 Order Bump &amp; Upsell — por dia <span class="hint">nº de vendas/dia + conversão diária (take rate = vendas do item ÷ vendas MPI) · order bump vs. upsell separados · no período</span></div>
+      <div class="ob-stats" id="obupStats"></div>
+      <div id="obupChart" style="margin:6px 0 10px"></div>
+      <div class="table-scroll"><table class="tbl" id="obupDaily"></table></div>
     </div>
 
     <div class="row-2">
@@ -208,7 +215,7 @@
   <!-- ============ CICLO DO MÊS ============ -->
   <section class="panel-tab hidden" id="tab-ciclo">
     <div class="hist-head">
-      <div class="hist-title">📉 Ciclo do mês — quando o ROAS cai <span class="hint" style="font-weight:500;text-transform:none;letter-spacing:0">soma de todos os meses por dia do mês (1→31) · ROAS inclui order bump · exclui o dia de hoje (parcial)</span></div>
+      <div class="hist-title">📉 Ciclo do mês — quando o ROAS cai <span class="hint" style="font-weight:500;text-transform:none;letter-spacing:0">soma de todos os meses por dia do mês (1→31) · ROAS inclui order bump + upsell · exclui o dia de hoje (parcial)</span></div>
     </div>
     <div class="card"><div id="cicloVerdict"></div></div>
     <div class="card"><div class="card-h">ROAS e vendas por dia do mês <span class="hint">linha dourada = ROAS médio · barras = vendas/dia · tracejado verde = média dos dias 1-20 · tracejado vermelho = onde começa a cair</span></div><div id="cicloChart"></div></div>
@@ -219,7 +226,7 @@
   <!-- ============ HISTÓRICO ============ -->
   <section class="panel-tab hidden" id="tab-historico">
     <div class="hist-head">
-      <div class="hist-title">📅 Histórico por dia da semana <span class="hint" style="font-weight:500;text-transform:none;letter-spacing:0">atualiza a cada 3h · vendas = MPI · ROAS inclui order bump · exclui o dia de hoje (parcial)</span></div>
+      <div class="hist-title">📅 Histórico por dia da semana <span class="hint" style="font-weight:500;text-transform:none;letter-spacing:0">atualiza a cada 3h · vendas = MPI · ROAS inclui order bump + upsell · exclui o dia de hoje (parcial)</span></div>
       <div class="hist-win" id="histWin"></div>
     </div>
     <div class="card"><div id="histVerdict"></div></div>
@@ -236,7 +243,7 @@
   </footer>
 </div>
 
-<script src="data.js?t=20261008v13"></script>
-<script src="app.js?t=20261008v13"></script>
+<script src="data.js?t=20261009v14"></script>
+<script src="app.js?t=20261009v14"></script>
 </body>
 </html>
