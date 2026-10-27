@@ -980,13 +980,48 @@ function v2Lines(groups,elId,level,onPick){
       tipShow(html,e.clientX,e.clientY); });
     r.addEventListener('mouseleave',tipHide); });
 }
+// ordenação clicável das tabelas V2 (por nível: 0 campanha, 1 conjunto, 2 anúncio) — 1º clique = melhor→pior, 2º inverte
+var v2Sort={0:{k:'spend',rev:false},1:{k:'spend',rev:false},2:{k:'spend',rev:false}};
+var V2COLS=[
+  {k:'name',l:null,b:'az'},
+  {k:'spend',l:'Gasto',b:'hi',v:function(o,m){return o.spend;}},
+  {k:'rev',l:'Faturamento',b:'hi',v:function(o,m){return o.rev;}},
+  {k:'roas',l:'ROAS',b:'hi',v:function(o,m){return m.roas;}},
+  {k:'roasob',l:'ROAS c/OB',b:'hi',v:function(o,m){return m.roasob;}},
+  {k:'roasobup',l:'ROAS c/OB+Up',b:'hi',v:function(o,m){return m.roasobup;}},
+  {k:'sales',l:'Vendas',b:'hi',v:function(o,m){return o.sales;}},
+  {k:'cac',l:'CAC',b:'lo',v:function(o,m){return m.cac;}},
+  {k:'cpm',l:'CPM',b:'lo',v:function(o,m){return m.cpm;}},
+  {k:'ctr',l:'CTR',b:'hi',v:function(o,m){return m.ctr;}},
+  {k:'connect',l:'Connect',b:'hi',v:function(o,m){return m.connect;}},
+  {k:'convPag',l:'Conv. pág.',b:'hi',v:function(o,m){return m.convPag;}},
+  {k:'txchk',l:'Tx Chk',b:'hi',v:function(o,m){return m.txchk;}},
+  {k:'txcpr',l:'Tx Compra',b:'hi',v:function(o,m){return m.txcpr;}},
+  {k:'lucro',l:'Lucro',b:'hi',v:function(o,m){return o.rev-o.spend;}}
+];
+function v2SortList(list,level){
+  var s=v2Sort[level], col=null; for(var i=0;i<V2COLS.length;i++){ if(V2COLS[i].k===s.k) col=V2COLS[i]; }
+  if(!col) return list.slice();
+  var rows=list.map(function(o){ var m=v2Metrics(o); var v=col.b==='az'?String(o.name||'').toLowerCase():col.v(o,m); if(v!=null&&typeof v==='number'&&!isFinite(v)) v=null; return {o:o,v:v}; });
+  rows.sort(function(a,b){
+    if(a.v==null&&b.v==null) return (b.o.spend||0)-(a.o.spend||0);
+    if(a.v==null) return 1; if(b.v==null) return -1;          // sem valor sempre no fim
+    var r = col.b==='az' ? (a.v<b.v?-1:(a.v>b.v?1:0)) : (col.b==='hi' ? b.v-a.v : a.v-b.v);
+    if(s.rev) r=-r;
+    return r!==0 ? r : (b.o.spend||0)-(a.o.spend||0);
+  });
+  return rows.map(function(x){return x.o;});
+}
 function v2Table(elId,title,hint,list,level){
   if(!el(elId)) return;
   if(!list.length){ el(elId).innerHTML='<div class="card"><div class="card-h">'+title+'</div><div class="empty">Sem dados no período.</div></div>'; return; }
-  var shown=list.slice(0,80);
+  var ss=v2Sort[level];
+  var shown=v2SortList(list,level).slice(0,80);
   var medC=median(shown.map(function(o){return o.sales>0?o.spend/o.sales:null;}).filter(function(x){return x!=null;}));
   var lvlLab=['Campanha','Conjunto / Grupo','Anúncio'][level];
-  var head='<thead><tr><th>'+lvlLab+'</th><th class="num">Gasto</th><th class="num">Faturamento</th><th class="num">ROAS</th><th class="num">ROAS c/OB</th><th class="num">ROAS c/OB+Up</th><th class="num">Vendas</th><th class="num">CAC</th><th class="num">CPM</th><th class="num">CTR</th><th class="num">Connect</th><th class="num">Conv. pág.</th><th class="num">Tx Chk</th><th class="num">Tx Compra</th><th class="num">Lucro</th></tr></thead>';
+  var head='<thead><tr>'+V2COLS.map(function(c){ var on=ss.k===c.k, lab=c.k==='name'?lvlLab:c.l;
+    return '<th class="sortable'+(c.k==='name'?'':' num')+(on?' sorton':'')+'" data-col="'+c.k+'" title="clique p/ ordenar (melhor→pior) · de novo p/ inverter">'+lab+(on?' <span class="sarr">'+(ss.rev?'▲':'▼')+'</span>':'')+'</th>'; }).join('')+'</tr></thead>';
+  var sortLab=''; V2COLS.forEach(function(c){ if(c.k===ss.k) sortLab=(c.k==='name'?'nome':c.l); });
   var body=shown.map(function(o){ var m=v2Metrics(o), sel=v2SelOf(o,level), lucro=o.rev-o.spend;
     var cacCell=m.cac!=null?'<span class="cac-pill '+cacClass(m.cac,medC)+'">'+money0(m.cac)+'</span>':'—';
     var roasCell=m.roas!=null?'<span class="roas-pill '+roasClass(m.roas)+'">'+roasf(m.roas)+'</span>':'—';
@@ -1008,10 +1043,14 @@ function v2Table(elId,title,hint,list,level){
       +'<td class="num">'+(m.txchk!=null?pct(m.txchk):'—')+'</td>'
       +'<td class="num">'+(m.txcpr!=null?pct(m.txcpr):'—')+'</td>'
       +'<td class="num '+(lucro>=0?'pos':'neg')+'">'+money0(lucro)+'</td></tr>'; }).join('');
-  var more = list.length>shown.length ? ' <span class="hint">· top '+shown.length+' de '+list.length+' por gasto</span>' : '';
+  var more = list.length>shown.length ? ' <span class="hint">· top '+shown.length+' de '+list.length+' por '+sortLab+'</span>' : '';
   el(elId).innerHTML='<div class="card"><div class="card-h">'+title+' <span class="hint">'+hint+'</span>'+more+'</div><div class="table-scroll"><table class="tbl v2tbl">'+head+'<tbody>'+body+'</tbody></table></div></div>';
   var byKey={}; shown.forEach(function(o){ byKey[o.key]=o; });
   Array.prototype.forEach.call(el(elId).querySelectorAll('.v2row'),function(tr){ tr.addEventListener('click',function(){ var o=byKey[decodeURIComponent(tr.getAttribute('data-key'))]; if(o) v2Pick(level,o); }); });
+  Array.prototype.forEach.call(el(elId).querySelectorAll('th.sortable'),function(th){ th.addEventListener('click',function(){
+    var k=th.getAttribute('data-col'), s=v2Sort[level];
+    if(s.k===k){ s.rev=!s.rev; } else { s.k=k; s.rev=false; }
+    v2Table(elId,title,hint,list,level); }); });
 }
 function v2CrumbHTML(){
   var p=['<a class="v2crumb'+(v2Sel.camp==null?' cur':'')+'" data-lvl="0">📊 Todas as campanhas</a>'];
