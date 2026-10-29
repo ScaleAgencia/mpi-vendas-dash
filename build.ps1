@@ -166,6 +166,49 @@ function Build-Source($qRows,$qh,$sales,$cfg){
     if($cn -ne '' -and $sn -ne ''){ $qPair["$cn`u$sn"]=$true; if($an -ne ''){ $qTriple["$cn`u$sn`u$an"]=$true } }
   }
 
+  # ---- FALLBACK p/ campanha/conjunto RENOMEADO depois de publicado (29/10/2026) ----
+  # A query traz o nome ATUAL; a utm da venda traz o nome do link (antigo, se a UTM foi escrita fixa).
+  # So casa quando ha UM candidato: mesma estrutura "a | b | c" com 1 bloco diferente (um contem o outro)
+  # OU o conjunto (utm_term) existe na campanha e >=60% dos blocos batem; e a campanha teve gasto
+  # entre 7 dias antes e 1 dia depois da venda. Na duvida, nao casa (vai p/ sem rastreio como antes).
+  $campInfo=@{}; $adSets=@{}
+  foreach($r in $qRows){ if($r.Count -le $Q_AD){continue}
+    $cn=Norm $r[$Q_CAMP]; if($cn -eq ''){continue}
+    if(-not $campInfo.ContainsKey($cn)){ $campInfo[$cn]=@{ segs=@((Deaccent $cn) -split '\s*\|\s*'); dmin='9999'; dmax='0000'; sets=@{} } }
+    $dd=GDay $r[$Q_DAY]; if($dd -ne ''){ $ci0=$campInfo[$cn]; if($dd -lt $ci0.dmin){$ci0.dmin=$dd}; if($dd -gt $ci0.dmax){$ci0.dmax=$dd} }
+    $sn=Norm $r[$Q_SET]; $an=Norm $r[$Q_AD]
+    if($sn -ne ''){ $campInfo[$cn].sets[(Deaccent $sn)]=1
+      if($an -ne ''){ $ka="$cn`u"+(Deaccent $an); if(-not $adSets.ContainsKey($ka)){ $adSets[$ka]=@{} }; $adSets[$ka][$sn]=1 } }
+  }
+  $fbCache=@{}; $script:fbHits=0
+  function FallbackCamp($utm,$term,$date){
+    # candidatos por estrutura do nome (1x por utm+term, cacheado); a janela de data filtra por venda
+    $ck="$utm`u$term"
+    if(-not $fbCache.ContainsKey($ck)){
+      $candA=New-Object System.Collections.Generic.List[string]; $candB=New-Object System.Collections.Generic.List[string]
+      $u=@((Deaccent $utm) -split '\s*\|\s*'); $ut=Deaccent $term
+      if($u.Count -ge 4){
+        foreach($cn in $campInfo.Keys){ $ci=$campInfo[$cn]; $q=$ci.segs; if($q.Count -lt 4){continue}
+          $n=[math]::Min($u.Count,$q.Count); $eq=0; $dIx=-1
+          for($k=0;$k -lt $n;$k++){ if($u[$k] -eq $q[$k]){ $eq++ } else { $dIx=$k } }
+          $mx=[math]::Max($u.Count,$q.Count)
+          if($u.Count -eq $q.Count -and ($mx-$eq) -eq 1 -and $u[$dIx] -ne '' -and $q[$dIx] -ne '' -and ($q[$dIx].Contains($u[$dIx]) -or $u[$dIx].Contains($q[$dIx]))){ $candA.Add($cn) }
+          elseif($ut -ne '' -and $ci.sets.ContainsKey($ut) -and ($eq/$mx) -ge 0.6){ $candB.Add($cn) }
+        }
+      }
+      $fbCache[$ck]=@{A=$candA;B=$candB}
+    }
+    $c=$fbCache[$ck]; if($c.A.Count -eq 0 -and $c.B.Count -eq 0){ return '' }
+    if($date -notmatch '^\d{4}-\d{2}-\d{2}$'){ return '' }
+    $d0=[datetime]::ParseExact($date,'yyyy-MM-dd',$null); $lo=$d0.AddDays(-7).ToString('yyyy-MM-dd'); $hi=$d0.AddDays(1).ToString('yyyy-MM-dd')
+    $okA=@($c.A | Where-Object { $campInfo[$_].dmax -ge $lo -and $campInfo[$_].dmin -le $hi })
+    if($okA.Count -eq 1){ return $okA[0] }
+    if($okA.Count -gt 1){ return '' }
+    $okB=@($c.B | Where-Object { $campInfo[$_].dmax -ge $lo -and $campInfo[$_].dmin -le $hi })
+    if($okB.Count -eq 1){ return $okB[0] }
+    return ''
+  }
+
   # ---- daily + grain a partir das queries (gasto/impr/cliques/lpv/checkout) ----
   $daily=@{}; $grain=@{}
   function _gd($h,$d){ if(-not $h.ContainsKey($d)){ $h[$d]=[pscustomobject]@{date=$d;spendRaw=0.0;spend=0.0;impr=0;clicks=0;lpv=0;checkout=0;sales=0;rev=0.0;gross=0.0} }; return $h[$d] }
@@ -188,11 +231,15 @@ function Build-Source($qRows,$qh,$sales,$cfg){
     $d=$s.date
     $o=_gd $daily $d; $o.sales++; $o.rev+=$s.rev; $o.gross+=$s.gross
     $cName=MatchName $s.camp $campDe
+    if($cName -eq '' -and $s.camp -ne ''){ $cName=FallbackCamp $s.camp $s.term $d; if($cName -ne ''){ $script:fbHits++ } }
     if($cName -eq ''){ $cName=$SENT; $sName=$SENT; $aName=$SENT }
     else {
       # conjunto pelo utm_term, anuncio pelo utm_content; exige co-localizacao com o gasto
       $sName=MatchName $s.term $setDe
       $aName=MatchName $s.cont $adDe
+      # conjunto renomeado: se o anuncio existe em UM unico conjunto dessa campanha, usa ele
+      if(($sName -eq '' -or -not $qPair.ContainsKey("$cName`u$sName")) -and $aName -ne ''){
+        $ka="$cName`u"+(Deaccent $aName); if($adSets.ContainsKey($ka) -and $adSets[$ka].Count -eq 1){ $sName=@($adSets[$ka].Keys)[0] } }
       if($sName -eq '' -or -not $qPair.ContainsKey("$cName`u$sName")){ $sName=$SENT; $aName=$SENT }
       elseif($aName -eq '' -or -not $qTriple.ContainsKey("$cName`u$sName`u$aName")){ $aName=$SENT }
       $attr++
@@ -201,6 +248,7 @@ function Build-Source($qRows,$qh,$sales,$cfg){
     $g=_gg $grain $key $d $cName $sName $aName; $g.sales++; $g.rev+=$s.rev; $g.gross+=$s.gross
   }
 
+  if($script:fbHits -gt 0){ Write-Host ("  fallback renomeadas: {0} vendas casadas por nome antigo de campanha" -f $script:fbHits) }
   $dailyArr=@($daily.Values | Sort-Object date)
   $grainArr=@($grain.Values | Where-Object { $_.spend -gt 0 -or $_.sales -gt 0 })
   $qDates=@($dailyArr | Where-Object { ($_.spend -gt 0 -or $_.impr -gt 0) -and $_.date -match '^\d{4}-\d{2}-\d{2}$' } | ForEach-Object { $_.date } | Sort-Object)
