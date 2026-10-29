@@ -22,6 +22,7 @@ $META_ID    = '15Gs6F0MDFA0oreosbcIZnibu69JGvIfCxNuuSlTxvNg'; $META_GID   = '126
 $GOOGLE_ID  = '1uXhxl7xafcdE8jLbA611a_KNYzEjipTEtpiP0HePD58'; $GOOGLE_GID = '0'   # queries Google/YouTube
 # ---- FUNIL MDP (novo, 01/10/2026) - Meta only por enquanto (Google sobe depois) ----
 $MDP_META_ID='1oCthdDA8PHu3NQiFyI6ReXRN9ERAnsnruX6XiWuqz10'; $MDP_META_GID='0'   # MDP queries Meta (planilha nova desde 21/10/2026; a antiga 1o5sx99M parou de puxar gasto/impressoes em 12/10)
+$MDP_META_GID2='814640205'   # aba "Pagina2" da mesma planilha (29/10/2026): campanhas "MPD | E4-VEN ..." que nao vem na Pagina1 -> somadas a query do MDP
 $TAX = 1.1385      # imposto Meta (+13,85%) aplicado em TODO gasto de Meta
 # produto MPI = venda direta principal (rotulo mudou ao longo do tempo)
 $MPI_PRODUCTS = @('MAPA DO PRIMEIRO INVESTIMENTO (MPI)','MPI')
@@ -71,6 +72,8 @@ Get-Sheet $VENDAS_ID $VENDAS_GID $vCsv
 Get-Sheet $META_ID   $META_GID   $mCsv
 Get-Sheet $GOOGLE_ID $GOOGLE_GID $gCsv
 Get-Sheet $MDP_META_ID $MDP_META_GID $mdpCsv
+$mdpCsv2=Join-Path $dataDir 'mdp-meta-2.csv'
+try { Get-Sheet $MDP_META_ID $MDP_META_GID2 $mdpCsv2 } catch { Write-Host ("  aviso: Pagina2 do MDP nao baixou ({0}) - segue so com a Pagina1" -f $_.Exception.Message); if(Test-Path $mdpCsv2){ Remove-Item $mdpCsv2 -Force } }
 
 $v = Read-Csv $vCsv; $vh=$v[0]; $vd=$v[1..($v.Count-1)]
 $V_PROD=HdrLike $vh 'produto'; $V_DATE=HdrLike $vh 'data'; $V_VAL=HdrLike $vh 'valor'; $V_FAT=HdrLike $vh 'faturamento'
@@ -286,7 +289,20 @@ function Build-Source($qRows,$qh,$sales,$cfg){
 $mAll = Read-Csv $mCsv; $mBuilt = Build-Source $mAll[1..($mAll.Count-1)] $mAll[0] $metaSales @{ hasLpv=$true; hasCheckout=$true; tax=$true }
 $gAll = Read-Csv $gCsv; $gBuilt = Build-Source $gAll[1..($gAll.Count-1)] $gAll[0] $googleSales @{ hasLpv=$false; hasCheckout=$false; tax=$false }
 # ---- MDP: so Meta por enquanto; Google = fonte vazia ate subirem ----
-$mdpAll = Read-Csv $mdpCsv; $mdpMeta = Build-Source $mdpAll[1..($mdpAll.Count-1)] $mdpAll[0] $mdpMetaSales @{ hasLpv=$true; hasCheckout=$true; tax=$true }
+$mdpAll = Read-Csv $mdpCsv
+$mdpRows = New-Object System.Collections.Generic.List[object]; foreach($r in $mdpAll[1..($mdpAll.Count-1)]){ $mdpRows.Add($r) }
+# Pagina2: soma as linhas, reordenando as colunas pelo NOME do cabecalho da Pagina1 (aba vazia/so cabecalho = ignorada)
+if(Test-Path $mdpCsv2){
+  $p2 = @(Read-Csv $mdpCsv2)
+  if($p2.Count -ge 2 -and ($p2[0] -is [array])){
+    $h1=$mdpAll[0]; $h2=$p2[0]; $map=@(); foreach($col in $h1){ $map += [array]::IndexOf($h2,$col) }
+    $n2=0; for($i=1;$i -lt $p2.Count;$i++){ $src=$p2[$i]; $row=New-Object string[] $h1.Count
+      for($j=0;$j -lt $h1.Count;$j++){ $ix=$map[$j]; $row[$j]= if($ix -ge 0 -and $ix -lt $src.Count){ $src[$ix] } else { '' } }
+      $mdpRows.Add($row); $n2++ }
+    Write-Host ("  MDP Pagina2: +{0} linhas de query" -f $n2)
+  }
+}
+$mdpMeta = Build-Source $mdpRows $mdpAll[0] $mdpMetaSales @{ hasLpv=$true; hasCheckout=$true; tax=$true }
 $emptySrc=[pscustomobject]@{ dateMin=''; dateMax=''; salesDateMin=''; salesDateMax=''
   totals=[pscustomobject]@{spendRaw=0;spend=0;impr=0;clicks=0;lpv=0;checkout=0;sales=0;rev=0.0;gross=0.0;salesAttr=0}
   names=@(); daily=@(); grain=@() }
