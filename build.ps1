@@ -50,7 +50,8 @@ function MoneyBR($s){ $s=Norm $s; if($s -eq ''){return 0.0}
 function ToInt($s){ $s=Norm $s; if($s -eq ''){return 0}; $v=($s -replace '\.','' -replace ',','.'); if($v -notmatch '^-?\d'){return 0}; return [int][double]$v }
 function Deaccent($s){ if($null -eq $s){return ''}; $s=$s.Normalize([Text.NormalizationForm]::FormD); $sb=New-Object Text.StringBuilder
   foreach($c in $s.ToCharArray()){ if([Globalization.CharUnicodeInfo]::GetUnicodeCategory($c) -ne [Globalization.UnicodeCategory]::NonSpacingMark){ [void]$sb.Append($c) } }
-  return $sb.ToString().ToLower().Trim() }
+  # colapsa espacos repetidos: o Stract/gerenciador as vezes traz "VSL  22" e a utm "VSL 22" (29/10/2026)
+  return (($sb.ToString().ToLower().Trim()) -replace '\s+',' ') }
 function HdrLike($hdr,$frag){ for($i=0;$i -lt $hdr.Count;$i++){ if((Deaccent $hdr[$i]) -like $frag){ return $i } }; return -1 }
 # vendas: "2024-11-21" OU "21/11/2024" OU "21/11/2024, 23:11:50" -> yyyy-mm-dd
 function SaleDate($s){ $s=Norm $s
@@ -102,7 +103,7 @@ foreach($r in $vd){
   $rev = MoneyBR $r[$V_FAT]; $gross = if($V_VAL -ge 0){ MoneyBR $r[$V_VAL] } else { $rev }
   $stag='g'; if($src -eq 'facebook-ads'){ $stag='m' }
   $camp = Norm $r[$V_CAMP]
-  $isMdp = ((Deaccent $camp) -match '^mdp\b')   # funil MDP = campanhas "MDP | ..."
+  $isMdp = ((Deaccent $camp) -match '^(mdp|mpd)\b')   # funil MDP = campanhas "MDP | ..." (aceita tb "MPD | ..." digitado trocado)
   $ok = ObKey $prod
   if($ok -ne ''){
     # order bump: separa por funil (campanha MDP -> OB do MDP; senao OB do MPI, comportamento original)
