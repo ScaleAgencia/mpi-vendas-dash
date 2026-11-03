@@ -131,7 +131,7 @@ function renderKpi(cfg,a,p,ob){
     +'<div class="h-foot"><span>Gerenciador <b>'+money0(a.spendRaw)+'</b></span>'
     +'<span>'+(cfg.taxed?'imposto <b>+13,85%</b>':'sem imposto')+'</span></div>'
     +goalStrip()+'</div>';
-  var subLucro = subRow('Lucro (fat. − invest.)', '<span class="'+(lucro>=0?'pos':'neg')+'">'+money0(lucro)+'</span>', '');
+  var lucroT=(a.rev+(ob.rev||0))-a.spend; var subLucro = subRow('Lucro c/ OB+Up', '<span class="'+(lucroT>=0?'pos':'neg')+'">'+money0(lucroT)+'</span>', '');
   var cards='';
   cards+=kpiCard('hl','Faturamento',money0(a.rev),
     subLucro + subRow('Ticket médio', a.sales?money(ticket):'—', trendHTML(ticket,dv(p.rev,p.sales),true)));
@@ -231,7 +231,7 @@ function heatBg(rgb,frac){ return 'background:rgba('+rgb+','+(0.10+0.42*clamp(fr
    rows: [{date,spend,rev,sales,impr,clicks,lpv,checkout}] · obByDay: {date: R$ OB do dia} */
 var STD_DAILY_COLS=14;
 function stdDailyCells(r,ob,maxS,medCac){
-  var roas=dv(r.rev,r.spend), roasob=dv(r.rev+(ob||0),r.spend), cac=(r.sales>0&&r.spend>0)?dv(r.spend,r.sales):null, lucro=r.rev-r.spend;
+  var roas=dv(r.rev,r.spend), roasob=dv(r.rev+(ob||0),r.spend), cac=(r.sales>0&&r.spend>0)?dv(r.spend,r.sales):null, lucro=r.rev+(ob||0)-r.spend;   // lucro do dia c/ order bump + upsell
   return '<td class="num"><span class="heatcell" style="'+heatBg('91,157,255',(maxS>0?r.spend/maxS:0))+'">'+moneyExato(r.spend)+'</span></td>'
     +'<td class="num">'+money0(r.rev)+'</td>'
     +'<td class="num">'+(r.spend>0?'<span class="roas-pill '+roasClass(roas)+'">'+roasf(roas)+'</span>':'—')+'</td>'
@@ -252,7 +252,7 @@ function stdDaily(rows,obByDay,outId){
   rows=rows.slice().sort(function(a,b){return b.date.localeCompare(a.date);});
   var maxS=Math.max.apply(null,rows.map(function(r){return r.spend||0;}).concat([1]));
   var medCac=median(rows.map(function(r){return (r.sales>0&&r.spend>0)?dv(r.spend,r.sales):null;}).filter(function(x){return x!=null;}));
-  var head='<thead><tr><th>Dia</th><th>Investimento</th><th>Faturamento</th><th>ROAS</th><th>ROAS c/OB+Up</th><th>Vendas</th><th>CAC</th><th>CPM</th><th>CTR</th><th>Connect</th><th>Conv. pág.</th><th>Tx Chk</th><th>Tx Compra</th><th>Lucro</th></tr></thead>';
+  var head='<thead><tr><th>Dia</th><th>Investimento</th><th>Faturamento</th><th>ROAS</th><th>ROAS c/OB+Up</th><th>Vendas</th><th>CAC</th><th>CPM</th><th>CTR</th><th>Connect</th><th>Conv. pág.</th><th>Tx Chk</th><th>Tx Compra</th><th>Lucro c/ OB+Up</th></tr></thead>';
   var body=rows.map(function(r){ return '<tr><td>'+fmtBR(r.date)+'</td>'+stdDailyCells(r,obByDay[r.date]||0,maxS,medCac)+'</tr>'; }).join('');
   if(!rows.length) body='<tr><td colspan="'+STD_DAILY_COLS+'" class="empty">Sem dados no período.</td></tr>';
   var t={date:'',spend:0,rev:0,sales:0,impr:0,clicks:0,lpv:0,checkout:0}, tob=0;
@@ -914,14 +914,14 @@ function v2Pick(level,o){
   mountV2();
 }
 function v2Kpis(m){
-  var lucro=m.rev-m.spend;
+  var lucro=m.rev+(m.sales||0)*(v2OBps+v2UPps)-m.spend;   // c/ order bump + upsell (alocado ∝ vendas)
   var hero='<div class="kpi-hero"><div class="h-lab">Investimento <small>(Meta c/ imposto + Google s/)</small></div>'
     +'<div class="h-val">'+money(m.spend)+'</div>'
     +'<div class="h-foot"><span>ROAS <b>'+(m.roas!=null?roasf(m.roas):'—')+'</b></span><span>Vendas <b>'+intf(m.sales)+'</b></span></div></div>';
   var cards='';
   cards+=kpiCard('','CPM',(m.cpm!=null?money(m.cpm):'—'), subRow('CTR',(m.ctr!=null?pct(m.ctr):'—'),'')+subRow('CPC',(m.cpc!=null?money(m.cpc):'—'),''));
   cards+=kpiCard('','Conv. página <small>(clique→venda)</small>',(m.convPag!=null?pct(m.convPag):'—'), subRow('Connect <small>(LPV/clique)</small>',(m.connect!=null?pct(m.connect):'—'),'')+subRow('Tx checkout <small>(LPV→chk)</small>',(m.txchk!=null?pct(m.txchk):'—'),''));
-  cards+=kpiCard('hl','Faturamento',money0(m.rev), subRow('Ticket médio',(m.ticket!=null?money(m.ticket):'—'),'')+subRow('Lucro (fat.−invest.)','<span class="'+(lucro>=0?'pos':'neg')+'">'+money0(lucro)+'</span>',''));
+  cards+=kpiCard('hl','Faturamento',money0(m.rev), subRow('Ticket médio',(m.ticket!=null?money(m.ticket):'—'),'')+subRow('Lucro c/ OB+Up','<span class="'+(lucro>=0?'pos':'neg')+'">'+money0(lucro)+'</span>',''));
   cards+=kpiCard('hl','Vendas',intf(m.sales), subRow('<b>CAC</b>',(m.cac!=null?money(m.cac):'—'),'')+subRow('Checkout→venda <small>(Meta)</small>',(m.txcpr!=null?pct(m.txcpr):'—'),''));
   var barw=clamp((m.roas||0)/1.5)*100, barcol=(m.roas>=1)?COL.grn:((m.roas>=0.8)?COL.gold:'#f2637e');
   cards+=kpiCard('gold','ROAS',(m.roas!=null?roasf(m.roas):'—'),
@@ -997,7 +997,7 @@ var V2COLS=[
   {k:'convPag',l:'Conv. pág.',b:'hi',v:function(o,m){return m.convPag;}},
   {k:'txchk',l:'Tx Chk',b:'hi',v:function(o,m){return m.txchk;}},
   {k:'txcpr',l:'Tx Compra',b:'hi',v:function(o,m){return m.txcpr;}},
-  {k:'lucro',l:'Lucro',b:'hi',v:function(o,m){return o.rev-o.spend;}}
+  {k:'lucro',l:'Lucro c/ OB+Up',b:'hi',v:function(o,m){return o.rev+(o.sales||0)*(v2OBps+v2UPps)-o.spend;}}
 ];
 function v2SortList(list,level){
   var s=v2Sort[level], col=null; for(var i=0;i<V2COLS.length;i++){ if(V2COLS[i].k===s.k) col=V2COLS[i]; }
@@ -1022,7 +1022,7 @@ function v2Table(elId,title,hint,list,level){
   var head='<thead><tr>'+V2COLS.map(function(c){ var on=ss.k===c.k, lab=c.k==='name'?lvlLab:c.l;
     return '<th class="sortable'+(c.k==='name'?'':' num')+(on?' sorton':'')+'" data-col="'+c.k+'" title="clique p/ ordenar (melhor→pior) · de novo p/ inverter">'+lab+(on?' <span class="sarr">'+(ss.rev?'▲':'▼')+'</span>':'')+'</th>'; }).join('')+'</tr></thead>';
   var sortLab=''; V2COLS.forEach(function(c){ if(c.k===ss.k) sortLab=(c.k==='name'?'nome':c.l); });
-  var body=shown.map(function(o){ var m=v2Metrics(o), sel=v2SelOf(o,level), lucro=o.rev-o.spend;
+  var body=shown.map(function(o){ var m=v2Metrics(o), sel=v2SelOf(o,level), lucro=o.rev+(o.sales||0)*(v2OBps+v2UPps)-o.spend;   // OB+upsell alocado ∝ vendas
     var cacCell=m.cac!=null?'<span class="cac-pill '+cacClass(m.cac,medC)+'">'+money0(m.cac)+'</span>':'—';
     var roasCell=m.roas!=null?'<span class="roas-pill '+roasClass(m.roas)+'">'+roasf(m.roas)+'</span>':'—';
     var roasobCell=m.roasob!=null?'<span class="roas-pill '+roasClass(m.roasob)+'">'+roasf(m.roasob)+'</span>':'—';
