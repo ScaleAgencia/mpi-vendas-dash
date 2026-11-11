@@ -38,9 +38,10 @@ function prep(S){
   return S;
 }
 var META, GOOG, OB, minDate, maxDate;   // reatribuídos por applyFunnel()
-var OB_LABELS={combo3:'Combo 3 em 1',exterior:'Investimentos no Exterior',cripto:'Criptomoedas',planilhas:'Planilhas complementares MPI',lastro:'Lastro'};
-var OB_ORDER=['combo3','exterior','cripto','planilhas','lastro'];
-var UPSELL_KEYS={lastro:1};   // chaves do bucket OB que sao UPSELL (pos-compra); o resto e order bump (checkout)
+var OB_LABELS={combo3:'Combo 3 em 1',exterior:'Investimentos no Exterior',cripto:'Criptomoedas',planilhas:'Planilhas complementares MPI',lastro:'Lastro · upsell',lastro_ds:'Lastro · downsell (50%)'};
+var OB_ORDER=['combo3','exterior','cripto','planilhas','lastro','lastro_ds'];
+var UPSELL_KEYS={lastro:1,lastro_ds:1};   // chaves do bucket OB que sao POS-COMPRA (upsell + downsell); o resto e order bump (checkout)
+var DOWNSELL_KEYS={lastro_ds:1};          // downsell = mesmo produto do upsell c/ desconto, oferecido a quem RECUSOU o upsell (build separa pelo valor)
 function obIsUpsell(k){ return !!UPSELL_KEYS[k]; }
 var OB_BUMPS=OB_ORDER.filter(function(k){return !obIsUpsell(k);});   // so order bumps (checkout)
 var OB_UPS=OB_ORDER.filter(function(k){return obIsUpsell(k);});      // so upsells (pos-compra)
@@ -420,17 +421,19 @@ function obTile(big,lab,val,sub){ return '<div class="obtile'+(big?' big':'')+'"
 // agrega order bumps no periodo (srcFilter: 'm'|'g'|null=ambos)
 function obAggFor(rng,srcFilter){
   var sales=0, rev=0, by={}, byDay={};
-  var obSales=0, obRev=0, upSales=0, upRev=0, byDayCat={};   // split order bump vs upsell
+  var obSales=0, obRev=0, upSales=0, upRev=0, dsSales=0, dsRev=0, byDayCat={};   // split order bump vs pos-compra (upSales/upRev = upsell+downsell; ds* = so downsell)
   OB.forEach(function(o){ if(!isDate(o.d)||!inRange(o.d,rng))return; if(srcFilter&&o.src!==srcFilter)return;
     sales+=o.s; rev+=o.r;
     (by[o.k]=by[o.k]||{s:0,r:0}); by[o.k].s+=o.s; by[o.k].r+=o.r;
     (byDay[o.d]=byDay[o.d]||{s:0,r:0}); byDay[o.d].s+=o.s; byDay[o.d].r+=o.r;
-    var up=obIsUpsell(o.k);
+    var up=obIsUpsell(o.k), ds=!!DOWNSELL_KEYS[o.k];
     if(up){ upSales+=o.s; upRev+=o.r; } else { obSales+=o.s; obRev+=o.r; }
-    (byDayCat[o.d]=byDayCat[o.d]||{obS:0,obR:0,upS:0,upR:0});
-    if(up){ byDayCat[o.d].upS+=o.s; byDayCat[o.d].upR+=o.r; } else { byDayCat[o.d].obS+=o.s; byDayCat[o.d].obR+=o.r; } });
+    if(ds){ dsSales+=o.s; dsRev+=o.r; }
+    (byDayCat[o.d]=byDayCat[o.d]||{obS:0,obR:0,upS:0,upR:0,dsS:0,dsR:0});
+    if(up){ byDayCat[o.d].upS+=o.s; byDayCat[o.d].upR+=o.r; } else { byDayCat[o.d].obS+=o.s; byDayCat[o.d].obR+=o.r; }
+    if(ds){ byDayCat[o.d].dsS+=o.s; byDayCat[o.d].dsR+=o.r; } });
   return {sales:sales, rev:rev, by:by, byDay:byDay,
-          obSales:obSales, obRev:obRev, upSales:upSales, upRev:upRev, byDayCat:byDayCat};
+          obSales:obSales, obRev:obRev, upSales:upSales, upRev:upRev, dsSales:dsSales, dsRev:dsRev, byDayCat:byDayCat};
 }
 // OB não é atribuído por criativo → aloca proporcional às VENDAS (OB/upsell entram por checkout/venda).
 // Devolve R$ por venda MPI no período/origem, p/ estimar ROAS c/OB (e c/OB+Up) por linha da árvore.
@@ -444,13 +447,21 @@ function obPerSaleFor(rng,srcFilter,cat){
   return sales>0? rev/sales : 0;
 }
 // renderiza o card de OB (tiles + breakdown) em qualquer aba. pfx: ''|'m-'|'g-'
-function renderOBcard(pfx,ob,mpiSales,mpiRev,spend){
-  var obS=ob.obSales||0, obR=ob.obRev||0, upS=ob.upSales||0, upR=ob.upRev||0;
+// 1o dia em que existe venda pos-compra (upsell/downsell) em todo o historico do funil: antes disso a oferta nao existia
+function postStartDate(){ var first=null; OB.forEach(function(o){ if(UPSELL_KEYS[o.k] && isDate(o.d) && (!first||o.d<first)) first=o.d; }); return first; }
+// vendas MPI do periodo que JA podiam ver o upsell (a partir do 1o dia da oferta). pfx: ''=Meta+Google, 'm-', 'g-'
+function postBase(pfx,rng){ var first=postStartDate(); if(!first||!rng) return null; var a=(rng[0]&&rng[0]>first)?rng[0]:first, b=rng[1]; if(b&&a>b) return 0;
+  var r2=[a,b], S= pfx==='m-'?[META]:(pfx==='g-'?[GOOG]:[META,GOOG]); return S.reduce(function(t,x){ return t+aggDaily(x,r2).sales; },0); }
+function renderOBcard(pfx,ob,mpiSales,mpiRev,spend,rng){
+  var obS=ob.obSales||0, obR=ob.obRev||0, dsS=ob.dsSales||0, dsR=ob.dsRev||0, upS=(ob.upSales||0)-dsS, upR=(ob.upRev||0)-dsR;
+  var pb=postBase(pfx,rng), upBase=(pb!=null)?pb:mpiSales, pStart=postStartDate();   // base do upsell = vendas MPI desde que a oferta existe
+  var recusou=Math.max(0,upBase-upS);   // quem viu o downsell = comprou o MPI e recusou o upsell
   var roasBase=dv(mpiRev,spend), fatTotal=mpiRev+ob.rev, roasOB=dv(fatTotal,spend), roasOBonly=dv(mpiRev+obR,spend);
   el(pfx+'obStats').innerHTML=
     obTile(false,'Vendas Order Bump',intf(obS),'take rate <b>'+pct(dv(obS,mpiSales)*100)+'</b> · de '+intf(mpiSales)+' MPI')
-    +obTile(false,'Vendas Upsell',intf(upS),'take rate <b>'+pct(dv(upS,mpiSales)*100)+'</b> · de '+intf(mpiSales)+' MPI')
-    +obTile(false,'Faturamento extra',money0(ob.rev),'OB <b>'+money0(obR)+'</b> · upsell <b>'+money0(upR)+'</b>')
+    +obTile(false,'Vendas Upsell',intf(upS),'conv. <b>'+pct(dv(upS,upBase)*100)+'</b> · de '+intf(upBase)+' vendas MPI'+(pStart&&upBase!==mpiSales?' (desde '+fmtBR(pStart)+')':''))
+    +obTile(false,'Vendas Downsell',intf(dsS),'conv. <b>'+pct(dv(dsS,recusou)*100)+'</b> · de '+intf(recusou)+' que recusaram o upsell')
+    +obTile(false,'Faturamento extra',money0(ob.rev),'OB <b>'+money0(obR)+'</b> · upsell <b>'+money0(upR)+'</b> · downsell <b>'+money0(dsR)+'</b>')
     +obTile(true,'Faturamento Total',money0(fatTotal),'MPI + OB + upsell')
     +obTile(true,'ROAS c/ OB',roasf(roasOBonly),'só order bump')
     +obTile(true,'ROAS c/ OB + Up',roasf(roasOB),(roasOB>=1?'✓ no lucro':'sobe de '+roasf(roasBase)));
@@ -461,10 +472,19 @@ function renderOBcard(pfx,ob,mpiSales,mpiRev,spend){
       +'<span class="obn">'+intf(b.s)+' vendas · <b>'+money0(b.r)+'</b> · '+pct(dv(b.r,totObR)*100)+'</span></div>'
       +'<div class="obtrack"><span style="width:'+w.toFixed(1)+'%"></span></div></div>'; }
   function grpLbl(t){ return '<div style="font-size:10.5px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.4px;margin:8px 0 4px">'+t+'</div>'; }
-  var html=grpLbl('Order bump (checkout)')+OB_BUMPS.map(obrow).join('');
-  if(OB_UPS.length){ html+=grpLbl('Upsell (pós-compra)')+OB_UPS.map(obrow).join(''); }
+  function fstep(lab,val,sub,cls){ return '<div style="flex:1;min-width:120px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07)'+(cls?';'+cls:'')+'"><div style="font-size:10.5px;color:var(--muted2);text-transform:uppercase;letter-spacing:.3px">'+lab+'</div><div style="font-size:17px;font-weight:800;margin-top:2px">'+val+'</div><div style="font-size:11px;color:var(--muted)">'+sub+'</div></div>'; }
+  var arw='<div style="align-self:center;color:var(--muted2);font-weight:700">›</div>';
+  var funil='<div style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 10px">'
+    +fstep('Compraram o MPI',intf(upBase),(pStart&&upBase!==mpiSales)?'desde '+fmtBR(pStart)+' (início do upsell)':'base do funil pós-compra')+arw
+    +fstep('Aceitaram o upsell',intf(upS),'conv. <b>'+pct(dv(upS,upBase)*100)+'</b> das vendas MPI','border-color:rgba(95,227,176,.35)')+arw
+    +fstep('Recusaram o upsell',intf(recusou),'viram o downsell')+arw
+    +fstep('Aceitaram o downsell',intf(dsS),'conv. <b>'+pct(dv(dsS,recusou)*100)+'</b> de quem recusou','border-color:rgba(232,182,74,.4)')+arw
+    +fstep('Pós-compra total',intf(upS+dsS),'<b>'+pct(dv(upS+dsS,upBase)*100)+'</b> das vendas MPI')
+    +'</div>';
+  var html=grpLbl('Funil pós-compra (upsell → downsell)')+funil+grpLbl('Order bump (checkout)')+OB_BUMPS.map(obrow).join('');
+  if(OB_UPS.length){ html+=grpLbl('Upsell e downsell (pós-compra)')+OB_UPS.map(obrow).join(''); }
   el(pfx+'obBreak').innerHTML=html
-    +'<div class="ob-foot">Order bump = produto levado no checkout do MPI; upsell = oferta pós-compra (ex.: Lastro). Faturamento líquido; ROAS c/ OB = só order bump · ROAS c/ OB+Up = order bump + upsell · ÷ investimento'+(pfx==='g-'?'':' c/ imposto')+'.</div>';
+    +'<div class="ob-foot">Order bump = produto levado no checkout do MPI; upsell = oferta pós-compra (Lastro); downsell = o mesmo Lastro com ~50% de desconto, oferecido a quem recusou o upsell (separado pelo valor da venda: R$ 60–150 = downsell). Conv. do downsell = downsell ÷ (vendas MPI − upsell). Faturamento líquido; ROAS c/ OB = só order bump · ROAS c/ OB+Up = order bump + upsell + downsell · ÷ investimento'+(pfx==='g-'?'':' c/ imposto')+'.</div>';
 }
 /* =================== OB & UPSELL POR DIA (contagem + conversão) =================== */
 // serie diaria unindo vendas MPI (combineDaily) com o split OB/upsell (ob.byDayCat)
@@ -472,16 +492,17 @@ function obUpSeries(rng,ob){
   var mpi={}; combineDaily(rng).forEach(function(d){ mpi[d.date]=(mpi[d.date]||0)+(d.sales||0); });
   var dates={}; Object.keys(mpi).forEach(function(d){dates[d]=1;}); Object.keys(ob.byDayCat||{}).forEach(function(d){dates[d]=1;});
   return Object.keys(dates).filter(isDate).sort().map(function(d){
-    var c=(ob.byDayCat||{})[d]||{obS:0,obR:0,upS:0,upR:0}, ms=mpi[d]||0;
-    return {date:d, label:fmtBR(d), mpiS:ms, obS:c.obS, obR:c.obR, upS:c.upS, upR:c.upR,
-            obConv: ms>0? c.obS/ms*100 : 0, upConv: ms>0? c.upS/ms*100 : 0 }; });
+    var c=(ob.byDayCat||{})[d]||{obS:0,obR:0,upS:0,upR:0,dsS:0,dsR:0}, ms=mpi[d]||0;
+    var dsS=c.dsS||0, dsR=c.dsR||0, upS=c.upS-dsS, upR=c.upR-dsR, rec=Math.max(0,ms-upS);   // upS/upR = so upsell
+    return {date:d, label:fmtBR(d), mpiS:ms, obS:c.obS, obR:c.obR, upS:upS, upR:upR, dsS:dsS, dsR:dsR, rec:rec,
+            obConv: ms>0? c.obS/ms*100 : 0, upConv: ms>0? upS/ms*100 : 0, dsConv: rec>0? dsS/rec*100 : 0 }; });
 }
 // grafico temporal: barras empilhadas (vendas OB + upsell) + 2 linhas de conversao %
 function obUpChart(series){
   if(series.length<2) return '<div class="empty">Histórico insuficiente no período.</div>';
   var W=840,H=250,pl=34,pr=46,pt=14,pb=26,pw=W-pl-pr,ph=H-pt-pb,bs=pt+ph;
-  var maxTot=Math.max.apply(null,series.map(function(o){return o.obS+o.upS;}).concat([1]));
-  var maxConv=Math.max.apply(null,series.map(function(o){return Math.max(o.obConv,o.upConv);}).concat([1]));
+  var maxTot=Math.max.apply(null,series.map(function(o){return o.obS+o.upS+(o.dsS||0);}).concat([1]));
+  var maxConv=Math.max.apply(null,series.map(function(o){return Math.max(o.obConv,o.upConv,o.dsConv||0);}).concat([1]));
   var n=series.length, gw=pw/n, bw=Math.max(3,Math.min(16,gw*0.5)), xOf=function(i){return pl+gw*i+gw/2;};
   var s='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet">';
   [0,.5,1].forEach(function(f){ var y=pt+ph*(1-f); s+='<line x1="'+pl+'" y1="'+y+'" x2="'+(W-pr)+'" y2="'+y+'" stroke="#16281f" stroke-dasharray="2 3"/>';
@@ -489,11 +510,12 @@ function obUpChart(series){
     s+='<text x="'+(W-pr+5)+'" y="'+(y+3)+'" text-anchor="start" fill="#c98a2a" font-size="9">'+nf0.format(Math.round(maxConv*f))+'%</text>'; });
   series.forEach(function(o,i){ var xc=xOf(i), hob=ph*dv(o.obS,maxTot), hup=ph*dv(o.upS,maxTot);
     if(o.obS>0)s+='<rect x="'+(xc-bw/2).toFixed(1)+'" y="'+(bs-hob).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+hob.toFixed(1)+'" rx="1.5" fill="rgba(232,182,74,.5)"/>';
-    if(o.upS>0)s+='<rect x="'+(xc-bw/2).toFixed(1)+'" y="'+(bs-hob-hup).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(1.5,hup).toFixed(1)+'" rx="1.5" fill="rgba(95,227,176,.85)"/>'; });
+    if(o.upS>0)s+='<rect x="'+(xc-bw/2).toFixed(1)+'" y="'+(bs-hob-hup).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(1.5,hup).toFixed(1)+'" rx="1.5" fill="rgba(95,227,176,.85)"/>';
+    var hds=ph*dv(o.dsS||0,maxTot); if(o.dsS>0)s+='<rect x="'+(xc-bw/2).toFixed(1)+'" y="'+(bs-hob-hup-hds).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(1.5,hds).toFixed(1)+'" rx="1.5" fill="rgba(167,139,250,.85)"/>'; });
   function line(key,col){ var pts=series.map(function(o,i){return [xOf(i), bs-ph*clamp(o[key]/maxConv)];});
     var path='<path d="M'+pts.map(function(pp){return pp[0].toFixed(1)+' '+pp[1].toFixed(1);}).join(' L')+'" fill="none" stroke="'+col+'" stroke-width="2.2"/>';
     return path+pts.map(function(pp){return '<circle cx="'+pp[0].toFixed(1)+'" cy="'+pp[1].toFixed(1)+'" r="2.1" fill="'+col+'"/>';}).join(''); }
-  s+=line('obConv',COL.gold)+line('upConv','#5fe3b0');
+  s+=line('obConv',COL.gold)+line('upConv','#5fe3b0')+line('dsConv','#a78bfa');
   var step=Math.max(1,Math.ceil(n/12));
   series.forEach(function(o,i){ if(i%step===0||i===n-1){ s+='<text x="'+xOf(i).toFixed(1)+'" y="'+(H-7)+'" text-anchor="middle" fill="#587567" font-size="9">'+o.label+'</text>'; } });
   s+=hitRects(series,pl,gw,pt,ph)+'</svg>';
@@ -502,35 +524,45 @@ function obUpChart(series){
     +'<span><span class="dot" style="background:rgba(95,227,176,.9)"></span>Vendas upsell</span>'
     +'<span><span class="ln" style="background:'+COL.gold+'"></span>Conv. OB %</span>'
     +'<span><span class="ln" style="background:#5fe3b0"></span>Conv. upsell %</span>'
-    +'<span style="color:var(--muted2)">conversão = vendas do item ÷ vendas MPI (take rate)</span></div>';
+    +'<span><span class="dot" style="background:rgba(167,139,250,.9)"></span>Vendas downsell</span>'
+    +'<span><span class="ln" style="background:#a78bfa"></span>Conv. downsell %</span>'
+    +'<span style="color:var(--muted2)">OB e upsell = ÷ vendas MPI · downsell = ÷ quem recusou o upsell</span></div>';
 }
 function renderObUpDaily(rng,ob){
   if(!el('obupDaily')) return;
   var series=obUpSeries(rng,ob), nd=series.length||1;
   var totMpi=0; series.forEach(function(o){totMpi+=o.mpiS;});
-  var today=series.length?series[series.length-1]:{obS:0,upS:0,obConv:0,upConv:0};
+  var today=series.length?series[series.length-1]:{obS:0,upS:0,dsS:0,obConv:0,upConv:0,dsConv:0};
+  var pS=postStartDate(), tUpOnly=0,tDs=0,tRec=0,tMpiUp=0,ndUp=0; series.forEach(function(o){ tUpOnly+=o.upS; tDs+=o.dsS; if(pS&&o.date>=pS){ tRec+=o.rec; tMpiUp+=o.mpiS; ndUp++; } }); ndUp=ndUp||1;
+  var hj=(maxDate?fmtBR(maxDate):'—');
   if(el('obupStats')) el('obupStats').innerHTML=
-    obTile(false,'Order bump · hoje',intf(today.obS),'conv <b>'+pct(today.obConv)+'</b> · '+(maxDate?fmtBR(maxDate):'—'))
-    +obTile(false,'Upsell · hoje',intf(today.upS),'conv <b>'+pct(today.upConv)+'</b> · '+(maxDate?fmtBR(maxDate):'—'))
+    obTile(false,'Order bump · hoje',intf(today.obS),'conv <b>'+pct(today.obConv)+'</b> · '+hj)
+    +obTile(false,'Upsell · hoje',intf(today.upS),'conv <b>'+pct(today.upConv)+'</b> · '+hj)
+    +obTile(false,'Downsell · hoje',intf(today.dsS||0),'conv <b>'+pct(today.dsConv||0)+'</b> de quem recusou · '+hj)
     +obTile(false,'Order bump · média/dia',nf1.format((ob.obSales||0)/nd),'take rate médio <b>'+pct(dv(ob.obSales||0,totMpi)*100)+'</b>')
-    +obTile(false,'Upsell · média/dia',nf1.format((ob.upSales||0)/nd),'take rate médio <b>'+pct(dv(ob.upSales||0,totMpi)*100)+'</b>');
+    +obTile(false,'Upsell · média/dia',nf1.format(tUpOnly/ndUp),'conv. média <b>'+pct(dv(tUpOnly,tMpiUp)*100)+'</b>'+(pS?' · desde '+fmtBR(pS):''))
+    +obTile(false,'Downsell · média/dia',nf1.format(tDs/ndUp),'conv. média <b>'+pct(dv(tDs,tRec)*100)+'</b> de quem recusou');
   if(el('obupChart')){ el('obupChart').innerHTML=obUpChart(series);
     bindHits('obupChart',series,function(o){ return '<div class="tt-d">'+o.label+'</div>'
       +'<div class="tt-r"><span style="color:'+COL.gold2+'">Order bump</span><b>'+intf(o.obS)+' vendas · '+pct(o.obConv)+'</b></div>'
       +'<div class="tt-r"><span style="color:'+COL.grn2+'">Upsell</span><b>'+intf(o.upS)+' vendas · '+pct(o.upConv)+'</b></div>'
-      +'<div class="tt-sub">Vendas MPI '+intf(o.mpiS)+' · Fat OB '+money0(o.obR)+' · Fat upsell '+money0(o.upR)+'</div>'; }); }
+      +'<div class="tt-r"><span style="color:#a78bfa">Downsell</span><b>'+intf(o.dsS)+' vendas · '+pct(o.dsConv)+' de '+intf(o.rec)+'</b></div>'
+      +'<div class="tt-sub">Vendas MPI '+intf(o.mpiS)+' · Fat OB '+money0(o.obR)+' · upsell '+money0(o.upR)+' · downsell '+money0(o.dsR)+'</div>'; }); }
   var rows=series.slice().reverse();
-  var head='<thead><tr><th>Dia</th><th>Vendas MPI</th><th>Vendas OB</th><th>Conv. OB</th><th>Vendas Upsell</th><th>Conv. Upsell</th><th>Fat. OB</th><th>Fat. Upsell</th></tr></thead>';
+  var head='<thead><tr><th>Dia</th><th>Vendas MPI</th><th>Vendas OB</th><th>Conv. OB</th><th>Vendas Upsell</th><th>Conv. Upsell</th><th>Vendas Downsell</th><th>Conv. Downsell</th><th>Fat. OB</th><th>Fat. Upsell</th><th>Fat. Downsell</th></tr></thead>';
   var body=rows.map(function(o){ return '<tr><td>'+o.label+'</td>'
     +'<td class="num">'+intf(o.mpiS)+'</td>'
     +'<td class="num">'+intf(o.obS)+'</td>'
     +'<td class="num">'+(o.mpiS>0?pct(o.obConv):'—')+'</td>'
     +'<td class="num">'+intf(o.upS)+'</td>'
     +'<td class="num">'+(o.mpiS>0?pct(o.upConv):'—')+'</td>'
+    +'<td class="num">'+intf(o.dsS)+'</td>'
+    +'<td class="num">'+(o.rec>0?pct(o.dsConv):'—')+'</td>'
     +'<td class="num">'+money0(o.obR)+'</td>'
-    +'<td class="num">'+money0(o.upR)+'</td></tr>'; }).join('');
-  var tM=0,tOB=0,tUP=0,tOBr=0,tUPr=0; series.forEach(function(o){tM+=o.mpiS;tOB+=o.obS;tUP+=o.upS;tOBr+=o.obR;tUPr+=o.upR;});
-  var foot='<tfoot><tr><td>Total</td><td class="num">'+intf(tM)+'</td><td class="num">'+intf(tOB)+'</td><td class="num">'+(tM>0?pct(tOB/tM*100):'—')+'</td><td class="num">'+intf(tUP)+'</td><td class="num">'+(tM>0?pct(tUP/tM*100):'—')+'</td><td class="num">'+money0(tOBr)+'</td><td class="num">'+money0(tUPr)+'</td></tr></tfoot>';
+    +'<td class="num">'+money0(o.upR)+'</td>'
+    +'<td class="num">'+money0(o.dsR)+'</td></tr>'; }).join('');
+  var tM=0,tOB=0,tUP=0,tOBr=0,tUPr=0,tDS=0,tDSr=0,tREC=0,tMU=0; series.forEach(function(o){tM+=o.mpiS;tOB+=o.obS;tUP+=o.upS;tOBr+=o.obR;tUPr+=o.upR;tDS+=o.dsS;tDSr+=o.dsR; if(!pS||o.date>=pS){ tREC+=o.rec; tMU+=o.mpiS; }});
+  var foot='<tfoot><tr><td>Total</td><td class="num">'+intf(tM)+'</td><td class="num">'+intf(tOB)+'</td><td class="num">'+(tM>0?pct(tOB/tM*100):'—')+'</td><td class="num">'+intf(tUP)+'</td><td class="num">'+(tMU>0?pct(tUP/tMU*100):'—')+'</td><td class="num">'+intf(tDS)+'</td><td class="num">'+(tREC>0?pct(tDS/tREC*100):'—')+'</td><td class="num">'+money0(tOBr)+'</td><td class="num">'+money0(tUPr)+'</td><td class="num">'+money0(tDSr)+'</td></tr></tfoot>';
   el('obupDaily').innerHTML=head+'<tbody>'+body+'</tbody>'+foot;
 }
 /* =================== META DE INVESTIMENTO (mensal, R$ 250k) =================== */
@@ -623,7 +655,7 @@ function renderGeral(rng){
   el('geralCmp').innerHTML='<thead><tr><th>Origem</th><th>Investimento</th><th>Vendas</th><th>Faturamento</th><th>Ticket</th><th>CAC</th><th>ROAS</th><th>Lucro</th></tr></thead><tbody>'
     +row('Meta Ads',COL.meta,am)+row('Google / YouTube',COL.goog,ag)+'</tbody><tfoot>'+totRow+'</tfoot>';
   // ----- seção Order Bumps (Meta + Google) -----
-  renderOBcard('', ob, sales, rev, spend);
+  renderOBcard('', ob, sales, rev, spend, rng);
   // ----- OB & Upsell por dia (contagem + conversão diária) -----
   renderObUpDaily(rng, ob);
 
@@ -1116,7 +1148,7 @@ function renderSource(cfg,rng,prng){
   var a=aggDaily(cfg.S,rng), p=aggDaily(cfg.S,prng), days=daysInRange(cfg.S,rng);
   var ob=obAggFor(rng, cfg.pfx==='m'?'m':'g');
   renderKpi(cfg,a,p,ob); renderFunnel(cfg,a,p); renderChartSales(cfg,days); renderChartRoas(cfg,days);
-  renderOBcard(cfg.pfx+'-', ob, a.sales, a.rev, a.spend);
+  renderOBcard(cfg.pfx+'-', ob, a.sales, a.rev, a.spend, rng);
   renderInsights(cfg,rng); renderDaily(cfg,rng); renderTree(cfg,rng);
 }
 function renderAll(){ var rng=rangeFor(period), prng=prevRange(rng);

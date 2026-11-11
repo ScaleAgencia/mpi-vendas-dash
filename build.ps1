@@ -108,6 +108,10 @@ foreach($r in $vd){
   $camp = Norm $r[$V_CAMP]
   $isMdp = ((Deaccent $camp) -match '^(mdp|mpd)\b')   # funil MDP = campanhas "MDP | ..." (aceita tb "MPD | ..." digitado trocado)
   $ok = ObKey $prod
+  # Lastro de OUTRO funil (FDI-VSL vende Lastro a R$397) nao entra no MPI/MPD
+  if($ok -ne '' -and (Deaccent $camp) -match 'fdi'){ $nSkip++; continue }
+  # Lastro: upsell (R$197, parcelas incluidas) x DOWNSELL (mesmo produto a ~50%: R$97) -> separa pelo valor bruto
+  if($ok -eq 'lastro' -and $gross -ge 60 -and $gross -lt 150){ $ok='lastro_ds' }
   if($ok -ne ''){
     # order bump: separa por funil (campanha MDP -> OB do MDP; senao OB do MPI, comportamento original)
     if($isMdp){ $mdpObSales.Add([pscustomobject]@{ date=$d; k=$ok; src=$stag; rev=$rev; gross=$gross }) }
